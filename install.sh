@@ -50,11 +50,24 @@ Name=WSL Hub
 Comment=Terminal, files and apps for WSL in one window
 Comment[it]=Terminale, file e app di WSL in un'unica finestra
 Exec=$LAUNCHER
-Icon=utilities-terminal
+Icon=wsl-hub
 Terminal=false
 Categories=System;Utility;
 StartupWMClass=wsl-hub
 EOF
+
+echo "==> Copio le icone in /usr/share/icons/hicolor"
+sudo install -D -m 644 "$SRC_DIR/icons/wsl-hub-16.png" /usr/share/icons/hicolor/16x16/apps/wsl-hub.png || true
+sudo install -D -m 644 "$SRC_DIR/icons/wsl-hub-24.png" /usr/share/icons/hicolor/24x24/apps/wsl-hub.png || true
+sudo install -D -m 644 "$SRC_DIR/icons/wsl-hub-32.png" /usr/share/icons/hicolor/32x32/apps/wsl-hub.png || true
+sudo install -D -m 644 "$SRC_DIR/icons/wsl-hub-48.png" /usr/share/icons/hicolor/48x48/apps/wsl-hub.png || true
+sudo install -D -m 644 "$SRC_DIR/icons/wsl-hub-64.png" /usr/share/icons/hicolor/64x64/apps/wsl-hub.png || true
+sudo install -D -m 644 "$SRC_DIR/icons/wsl-hub-128.png" /usr/share/icons/hicolor/128x128/apps/wsl-hub.png || true
+sudo install -D -m 644 "$SRC_DIR/icons/wsl-hub-256.png" /usr/share/icons/hicolor/256x256/apps/wsl-hub.png || true
+sudo install -D -m 644 "$SRC_DIR/icons/wsl-hub.svg" /usr/share/icons/hicolor/scalable/apps/wsl-hub.svg || true
+
+# Aggiorna la cache delle icone se possibile
+sudo gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
 
 cat <<EOF
 

@@ -27,6 +27,19 @@ if [ -f "$DESKTOP_FILE" ]; then
 fi
 echo "Programma e icona rimossi."
 
+# Rimuovo le icone installate (se presenti)
+sudo rm -f /usr/share/icons/hicolor/16x16/apps/wsl-hub.png || true
+sudo rm -f /usr/share/icons/hicolor/24x24/apps/wsl-hub.png || true
+sudo rm -f /usr/share/icons/hicolor/32x32/apps/wsl-hub.png || true
+sudo rm -f /usr/share/icons/hicolor/48x48/apps/wsl-hub.png || true
+sudo rm -f /usr/share/icons/hicolor/64x64/apps/wsl-hub.png || true
+sudo rm -f /usr/share/icons/hicolor/128x128/apps/wsl-hub.png || true
+sudo rm -f /usr/share/icons/hicolor/256x256/apps/wsl-hub.png || true
+sudo rm -f /usr/share/icons/hicolor/scalable/apps/wsl-hub.svg || true
+
+# Aggiorna la cache delle icone se possibile
+sudo gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
+
 if [ "${1:-}" = "--purge" ]; then
     rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/wsl-hub" "${XDG_CACHE_HOME:-$HOME/.cache}/wsl-hub"
     echo "Configurazione e log rimossi."
