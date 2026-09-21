@@ -1,0 +1,58 @@
+{
+  "profiles": {
+    "Qt 5.15 desktop": {
+      "description": "Qt installato con l'installer ufficiale in ~/Qt",
+      "script": "",
+      "vars": {
+        "QTDIR": "~/Qt/5.15.2/gcc_64",
+        "PATH": "${QTDIR}/bin:${PATH}",
+        "CMAKE_PREFIX_PATH": "${QTDIR}",
+        "LD_LIBRARY_PATH": "${QTDIR}/lib:${LD_LIBRARY_PATH}",
+        "QT_PLUGIN_PATH": "${QTDIR}/plugins",
+        "QML2_IMPORT_PATH": "${QTDIR}/qml",
+        "QT_QPA_PLATFORM": "xcb"
+      }
+    },
+    "Qt 6.8 desktop": {
+      "description": "Qt installato con l'installer ufficiale in ~/Qt",
+      "script": "",
+      "vars": {
+        "QTDIR": "~/Qt/6.8.0/gcc_64",
+        "PATH": "${QTDIR}/bin:${PATH}",
+        "CMAKE_PREFIX_PATH": "${QTDIR}",
+        "LD_LIBRARY_PATH": "${QTDIR}/lib:${LD_LIBRARY_PATH}",
+        "QT_PLUGIN_PATH": "${QTDIR}/plugins",
+        "QML_IMPORT_PATH": "${QTDIR}/qml",
+        "QT_QPA_PLATFORM": "xcb"
+      }
+    },
+    "SDK Yocto (cross-compilazione)": {
+      "description": "SDK generato con bitbake -c populate_sdk e installato in /opt",
+      "script": "/opt/<distro>/<versione>/environment-setup-<architettura>-poky-linux",
+      "vars": {}
+    }
+  },
+  "apps": [
+    {
+      "name": "Qt Creator",
+      "command": "~/Qt/Tools/QtCreator/bin/qtcreator",
+      "icon": "qtcreator",
+      "cwd": "",
+      "terminal": false,
+      "profiles": ["Qt 5.15 desktop", "Qt 6.8 desktop", "SDK Yocto (cross-compilazione)"]
+    },
+    {
+      "name": "htop",
+      "command": "htop",
+      "icon": "utilities-system-monitor",
+      "cwd": "",
+      "terminal": true,
+      "profiles": []
+    }
+  ],
+  "bookmarks": [
+    {"name": "Home", "path": "~"},
+    {"name": "Progetti", "path": "~/progetti"},
+    {"name": "Windows C:", "path": "/mnt/c"}
+  ]
+}

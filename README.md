@@ -1,140 +1,144 @@
 # WSL Hub
 
-Una finestra unica per lavorare in WSL: **terminale sempre presente**, **file manager** e **launcher di app**, con **profili d'ambiente** per avviare strumenti diversi con variabili diverse.
+**English** | [Italiano](README.it.md)
 
-Il caso d'uso tipico è lo sviluppo per dispositivi embedded: con i profili passi in un clic da una versione all'altra del framework (ad esempio Qt) o da un SDK di cross-compilazione all'altro (ad esempio quelli generati con Yocto), per compilare e provare la stessa applicazione su dispositivi diversi.
+A single window for working in WSL: an **always-on terminal**, a **file manager** and an **app launcher**, with **environment profiles** to start different tools with different variables.
 
-Gira dentro WSL e viene mostrata su Windows tramite [WSLg](https://github.com/microsoft/wslg), come una normale applicazione con la sua icona nel menu Start.
+The typical use case is embedded development: profiles let you switch in one click between versions of a framework (for example Qt) or between cross-compilation SDKs (for example those generated with Yocto), so you can build and test the same application for different devices.
 
-![Screenshot di WSL Hub](docs/screenshot.png)
+It runs inside WSL and is displayed on Windows through [WSLg](https://github.com/microsoft/wslg), like a regular application with its own icon in the Start menu.
 
-## Funzioni
+> **Note:** the user interface is currently in Italian. Button names in this README are quoted as they appear on screen, followed by an English translation.
 
-- **Terminale integrato** (VTE, lo stesso motore di GNOME Terminal) con schede. Chiudendo l'ultima scheda se ne apre subito un'altra, così il terminale c'è sempre.
-- **File manager** con segnalibri, file nascosti, menu contestuale (rinomina, cestino, nuova cartella, copia percorso Linux o Windows) e sincronizzazione con la cartella del terminale.
-- **Integrazione con Windows**: i file senza un'app Linux associata si aprono con il programma predefinito di Windows, e ogni cartella si può mostrare in Esplora file.
-- **Launcher di app**: le app grafiche installate in WSL più le tue app personalizzate, con ricerca.
-- **Profili d'ambiente**: gruppi di variabili (con riferimenti come `${PATH}`) e, se serve, uno script caricato con `source`. Si applicano alle app e ai terminali che avvii, senza toccare il resto del sistema. Se un'app ha più profili, al clic scegli con quale avviarla.
-- **Accesso root**: terminale root, modalità root del file manager (lettura e modifica di `/root`, `/etc`, …) e «Modifica come root» per i singoli file. L'interfaccia resta con il tuo utente: come root girano solo le operazioni richieste.
-- **Log delle app**: l'output di ogni app avviata finisce in un log. Se un'app si chiude subito con un errore, l'hub mostra le ultime righe.
-- **Avvio automatico** opzionale all'apertura di WSL, e istanza singola: aprirlo di nuovo porta in primo piano la finestra esistente.
+![WSL Hub screenshot](docs/screenshot.png)
 
-## Requisiti
+## Features
 
-- Windows 11, oppure Windows 10 con una versione di WSL che includa WSLg (WSL dal Microsoft Store).
-- Una distribuzione WSL 2 basata su Debian o Ubuntu (testato su Ubuntu 24.04).
+- **Built-in terminal** (VTE, the same engine used by GNOME Terminal) with tabs. When you close the last tab, a new one opens right away, so the terminal is always there.
+- **File manager** with bookmarks, hidden files, a context menu (rename, trash, new folder, copy the Linux or Windows path) and sync with the terminal's current folder.
+- **Windows integration**: files with no associated Linux app open with the default Windows program, and any folder can be shown in File Explorer.
+- **App launcher**: graphical apps installed in WSL plus your own custom apps, with search.
+- **Environment profiles**: sets of variables (with references such as `${PATH}`) and, optionally, a script loaded with `source`. They apply only to the apps and terminals you start, without touching the rest of the system. If an app has several profiles, you pick one when you click it.
+- **Root access**: a root terminal, a root mode for the file manager (read and edit `/root`, `/etc`, …) and "Edit as root" for single files. The interface keeps running as your user: only the operations you request run as root.
+- **App logs**: the output of every app you start goes to a log. If an app exits right away with an error, the hub shows its last lines.
+- **Optional autostart** when WSL opens, and a single instance: launching it again brings the existing window to the front.
 
-Le dipendenze Linux (GTK 3, VTE, icone, font) vengono installate da `install.sh`.
+## Requirements
 
-## Installazione
+- Windows 11, or Windows 10 with a WSL version that includes WSLg (WSL from the Microsoft Store).
+- A WSL 2 distribution based on Debian or Ubuntu (tested on Ubuntu 24.04).
 
-Dentro WSL, come utente normale (**senza** `sudo`: lo script chiede la password quando serve):
+The Linux dependencies (GTK 3, VTE, icons, fonts) are installed by `install.sh`.
+
+## Installation
+
+Inside WSL, as a regular user (**without** `sudo`: the script asks for your password when needed):
 
 ```bash
-git clone https://github.com/<utente>/wsl-hub.git
+git clone https://github.com/<user>/wsl-hub.git
 cd wsl-hub
 ./install.sh
 ```
 
-Poi, da PowerShell, esegui `wsl --shutdown` e riapri la distribuzione: WSLg aggiunge **WSL Hub** al menu Start di Windows, e da lì puoi fissarlo sulla barra delle applicazioni.
+Then run `wsl --shutdown` from PowerShell and reopen the distribution: WSLg adds **WSL Hub** to the Windows Start menu, and from there you can pin it to the taskbar.
 
-Se l'icona non compare, `install.sh` stampa la riga per creare a mano un collegamento con `wslg.exe`.
+If the icon does not appear, `install.sh` prints the line to create a shortcut by hand with `wslg.exe`.
 
-### Avvio automatico all'apertura di WSL
+### Start automatically when WSL opens
 
 ```bash
-./autostart.sh             # apre l'hub quando apri WSL, la console resta aperta
-./autostart.sh --only-hub  # apre l'hub e chiude la console
-./autostart.sh --remove    # disattiva
+./autostart.sh             # opens the hub when you open WSL, the console stays open
+./autostart.sh --only-hub  # opens the hub and closes the console
+./autostart.sh --remove    # turns autostart off
 ```
 
-Lo script aggiunge un blocco delimitato a `~/.bashrc` e ne salva prima una copia. Il blocco non si attiva nei terminali dell'hub né in quello di VS Code.
+The script adds a delimited block to `~/.bashrc` and backs up the file first. The block does not run in the hub's own terminals or in the VS Code terminal.
 
-## Profili d'ambiente
+## Environment profiles
 
-Un profilo è un insieme di variabili applicate **solo** al processo che avvii. Si gestiscono dal pulsante **Profili ambiente**.
+A profile is a set of variables applied **only** to the process you start. Profiles are managed from the **Profili ambiente** (Environment profiles) button.
 
-- Le variabili sono applicate in ordine, e `${NOME}` si riferisce al valore già presente, comprese le variabili definite nelle righe precedenti:
+- Variables are applied in order, and `${NAME}` refers to the existing value, including variables defined in earlier rows:
   ```
-  QTDIR            = ~/Qt/6.8.0/gcc_64
-  PATH             = ${QTDIR}/bin:${PATH}
+  QTDIR             = ~/Qt/6.8.0/gcc_64
+  PATH              = ${QTDIR}/bin:${PATH}
   CMAKE_PREFIX_PATH = ${QTDIR}
   ```
-- Il campo **Script (source)** carica uno script prima dell'avvio. È utile con gli SDK che forniscono un file `environment-setup-*`, come quelli di Yocto.
-- **Verifica valori** mostra i valori risultanti e segnala i percorsi che non esistono.
-- Il pulsante **Terminale con profilo** apre una shell con quelle variabili. La variabile `WSL_HUB_PROFILE` contiene il nome del profilo attivo, per mostrarlo nel prompt:
+- The **Script (source)** field loads a script before launch. This is useful with SDKs that ship an `environment-setup-*` file, such as Yocto SDKs.
+- **Verifica valori** (Check values) shows the resulting values and flags paths that do not exist.
+- The **Terminale con profilo** (Terminal with profile) button opens a shell with those variables. The `WSL_HUB_PROFILE` variable holds the name of the active profile, so you can show it in your prompt:
   ```bash
   [ -n "$WSL_HUB_PROFILE" ] && PS1="[$WSL_HUB_PROFILE] $PS1"
   ```
 
-Esempi completi (due versioni di Qt, un SDK Yocto, un'app da terminale) sono in [`config.example.json`](config.example.json).
+Complete examples (two Qt versions, a Yocto SDK, a terminal app) are in [`config.example.json`](config.example.json).
 
-WSL Hub non include e non distribuisce Qt né altri SDK: i profili si limitano a indicare dove si trova un'installazione già presente sul tuo sistema. Funziona allo stesso modo con qualunque edizione di Qt (open source o commerciale), e ciascuno resta responsabile della licenza del software che installa e usa.
+WSL Hub does not include or distribute Qt or any other SDK: profiles only point to an installation that already exists on your system. It works the same way with any Qt edition (open source or commercial), and each user remains responsible for the license of the software they install and use.
 
-## Accesso root
+## Root access
 
-Il comportamento si sceglie con `root_method` in `config.json`:
+The behavior is set with `root_method` in `config.json`:
 
-| Valore | Come si ottiene root |
+| Value | How root is obtained |
 |---|---|
-| `"auto"` (predefinito) | `wsl.exe -u root`, senza password, lo stesso meccanismo di `wsl -u root` da PowerShell. Se `wsl.exe` non è raggiungibile, usa `sudo`. |
-| `"sudo"` | Sempre `sudo`: la password viene chiesta in una finestra (file manager) o nel terminale (terminale root). |
+| `"auto"` (default) | `wsl.exe -u root`, with no password: the same mechanism as `wsl -u root` from PowerShell. If `wsl.exe` cannot be reached, `sudo` is used. |
+| `"sudo"` | Always `sudo`: the password is asked in a dialog (file manager) or in the terminal (root terminal). |
 
-`"auto"` non aggiunge rischi rispetto a una normale installazione di WSL, dove l'account Windows può già diventare root con `wsl -u root`. Se preferisci che la password venga chiesta ogni volta, usa `"sudo"`.
+`"auto"` adds no risk compared to a standard WSL installation, where the Windows account can already become root with `wsl -u root`. If you prefer to be asked for a password every time, use `"sudo"`.
 
-## Configurazione
+## Configuration
 
-Il file è `~/.config/wsl-hub/config.json` e viene creato al primo avvio. Si può modificare dal menu **☰ → Modifica config.json nel terminale** e poi applicare con **Ricarica la configurazione**.
+The file is `~/.config/wsl-hub/config.json` and is created on first launch. You can edit it from the menu **☰ → Modifica config.json nel terminale** (Edit config.json in the terminal) and then apply it with **Ricarica la configurazione** (Reload configuration).
 
-| Chiave | Descrizione |
+| Key | Description |
 |---|---|
-| `profiles` | Profili d'ambiente: `description`, `script`, `vars`. |
-| `apps` | App personalizzate: `name`, `command`, `icon` (nome di icona o percorso), `cwd`, `terminal` (per i programmi testuali), `profiles`. |
-| `bookmarks` | Segnalibri del file manager (`name`, `path`). |
-| `root_method` | `"auto"` o `"sudo"`, vedi sopra. |
-| `terminal_font` | Font del terminale, es. `"JetBrains Mono 11"`. |
-| `dark_theme`, `gtk_theme` | Tema scuro e tema GTK (`""` per usare quello di sistema). |
-| `show_hidden`, `show_system_apps` | Stato iniziale dei relativi interruttori. |
+| `profiles` | Environment profiles: `description`, `script`, `vars`. |
+| `apps` | Custom apps: `name`, `command`, `icon` (icon name or path), `cwd`, `terminal` (for text-mode programs), `profiles`. |
+| `bookmarks` | File manager bookmarks (`name`, `path`). |
+| `root_method` | `"auto"` or `"sudo"`, see above. |
+| `terminal_font` | Terminal font, e.g. `"JetBrains Mono 11"`. |
+| `dark_theme`, `gtk_theme` | Dark theme and GTK theme (`""` to use the system theme). |
+| `show_hidden`, `show_system_apps` | Initial state of the matching toggles. |
 
-I log delle app sono in `~/.cache/wsl-hub/logs/`.
+App logs are in `~/.cache/wsl-hub/logs/`.
 
-## Scorciatoie
+## Keyboard shortcuts
 
-| Tasti | Azione |
+| Keys | Action |
 |---|---|
-| Ctrl+Shift+T | Nuova scheda terminale |
-| Ctrl+Shift+W | Chiudi scheda |
-| Ctrl+Shift+C / V | Copia / incolla nel terminale |
-| Ctrl+Shift+A | Mostra o nascondi il pannello app |
-| Ctrl+Shift+F | Cerca un'app |
+| Ctrl+Shift+T | New terminal tab |
+| Ctrl+Shift+W | Close tab |
+| Ctrl+Shift+C / V | Copy / paste in the terminal |
+| Ctrl+Shift+A | Show or hide the app panel |
+| Ctrl+Shift+F | Search for an app |
 
-## Risoluzione dei problemi
+## Troubleshooting
 
-- **L'icona non compare nel menu Start**: esegui `wsl --shutdown` da PowerShell e riapri la distribuzione.
-- **Finestra troppo piccola su schermi ad alta risoluzione**: aggiungi `export GDK_SCALE=2` a `~/.profile`.
-- **Un'app Qt non parte («Could not load the Qt platform plugin "xcb"»)**: installa `libxcb-cursor0`. Per i dettagli avvia l'app da un terminale con `QT_DEBUG_PLUGINS=1`.
-- **Un'app non si avvia**: controlla il suo log in `~/.cache/wsl-hub/logs/`.
-- **Le variabili modificate non si vedono in un terminale già aperto**: è il comportamento normale di Linux. Apri una nuova scheda con il profilo.
+- **The icon does not appear in the Start menu**: run `wsl --shutdown` from PowerShell and reopen the distribution.
+- **The window is too small on high-resolution screens**: add `export GDK_SCALE=2` to `~/.profile`.
+- **A Qt app does not start ("Could not load the Qt platform plugin "xcb"")**: install `libxcb-cursor0`. For details, start the app from a terminal with `QT_DEBUG_PLUGINS=1`.
+- **An app does not start**: check its log in `~/.cache/wsl-hub/logs/`.
+- **Changed variables do not show up in a terminal that is already open**: this is normal Linux behavior. Open a new tab with the profile.
 
-## Disinstallazione
+## Uninstall
 
 ```bash
-./uninstall.sh          # rimuove programma, icona e avvio automatico
-./uninstall.sh --purge  # rimuove anche configurazione e log
+./uninstall.sh          # removes the program, the icon and autostart
+./uninstall.sh --purge  # also removes configuration and logs
 ```
 
-## Limiti noti
+## Known limitations
 
-- L'interfaccia è in italiano.
-- Pensato per distribuzioni Debian/Ubuntu: su altre distribuzioni vanno installate a mano le dipendenze equivalenti.
-- La modalità root del file manager non usa il cestino: l'eliminazione è definitiva, previa conferma.
+- The user interface is in Italian.
+- Designed for Debian/Ubuntu distributions: on other distributions, install the equivalent dependencies by hand.
+- The file manager's root mode does not use the trash: deletion is permanent, after confirmation.
 
-## Licenza
+## License
 
-WSL Hub è distribuito con licenza [MIT](LICENSE).
+WSL Hub is released under the [MIT](LICENSE) license.
 
-## Marchi
+## Trademarks
 
-Qt è un marchio registrato di The Qt Company Ltd. e delle sue controllate. Windows e WSL sono marchi di Microsoft Corporation. Yocto Project è un marchio di The Linux Foundation. Tutti gli altri nomi di prodotti e aziende appartengono ai rispettivi proprietari e sono citati solo per indicare la compatibilità.
+Qt is a registered trademark of The Qt Company Ltd. and its subsidiaries. Windows and WSL are trademarks of Microsoft Corporation. Yocto Project is a trademark of The Linux Foundation. All other product and company names belong to their respective owners and are mentioned only to indicate compatibility.
 
-WSL Hub è un progetto indipendente: non è affiliato, sponsorizzato né approvato da The Qt Company, da Microsoft o da The Linux Foundation.
+WSL Hub is an independent project: it is not affiliated with, sponsored by or endorsed by The Qt Company, Microsoft or The Linux Foundation.
