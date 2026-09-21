@@ -47,7 +47,8 @@ sudo tee "$DESKTOP_FILE" > /dev/null <<EOF
 [Desktop Entry]
 Type=Application
 Name=WSL Hub
-Comment=Terminale, file e app di WSL in un'unica finestra
+Comment=Terminal, files and apps for WSL in one window
+Comment[it]=Terminale, file e app di WSL in un'unica finestra
 Exec=$LAUNCHER
 Icon=utilities-terminal
 Terminal=false

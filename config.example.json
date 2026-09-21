@@ -1,7 +1,8 @@
 {
+  "language": "auto",
   "profiles": {
     "Qt 5.15 desktop": {
-      "description": "Qt installato con l'installer ufficiale in ~/Qt",
+      "description": "Qt installed with the official installer in ~/Qt",
       "script": "",
       "vars": {
         "QTDIR": "~/Qt/5.15.2/gcc_64",
@@ -14,7 +15,7 @@
       }
     },
     "Qt 6.8 desktop": {
-      "description": "Qt installato con l'installer ufficiale in ~/Qt",
+      "description": "Qt installed with the official installer in ~/Qt",
       "script": "",
       "vars": {
         "QTDIR": "~/Qt/6.8.0/gcc_64",
@@ -26,9 +27,9 @@
         "QT_QPA_PLATFORM": "xcb"
       }
     },
-    "SDK Yocto (cross-compilazione)": {
-      "description": "SDK generato con bitbake -c populate_sdk e installato in /opt",
-      "script": "/opt/<distro>/<versione>/environment-setup-<architettura>-poky-linux",
+    "Yocto SDK (cross-compilation)": {
+      "description": "SDK generated with bitbake -c populate_sdk and installed in /opt",
+      "script": "/opt/<distro>/<version>/environment-setup-<architecture>-poky-linux",
       "vars": {}
     }
   },
@@ -39,7 +40,11 @@
       "icon": "qtcreator",
       "cwd": "",
       "terminal": false,
-      "profiles": ["Qt 5.15 desktop", "Qt 6.8 desktop", "SDK Yocto (cross-compilazione)"]
+      "profiles": [
+        "Qt 5.15 desktop",
+        "Qt 6.8 desktop",
+        "Yocto SDK (cross-compilation)"
+      ]
     },
     {
       "name": "htop",
@@ -51,8 +56,17 @@
     }
   ],
   "bookmarks": [
-    {"name": "Home", "path": "~"},
-    {"name": "Progetti", "path": "~/progetti"},
-    {"name": "Windows C:", "path": "/mnt/c"}
+    {
+      "name": "Home",
+      "path": "~"
+    },
+    {
+      "name": "Projects",
+      "path": "~/projects"
+    },
+    {
+      "name": "Windows C:",
+      "path": "/mnt/c"
+    }
   ]
 }

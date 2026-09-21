@@ -8,7 +8,7 @@ Il caso d'uso tipico è lo sviluppo per dispositivi embedded: con i profili pass
 
 Gira dentro WSL e viene mostrata su Windows tramite [WSLg](https://github.com/microsoft/wslg), come una normale applicazione con la sua icona nel menu Start.
 
-![Screenshot di WSL Hub](docs/screenshot.png)
+![Screenshot di WSL Hub](docs/screenshot.it.png)
 
 ## Funzioni
 
@@ -19,6 +19,7 @@ Gira dentro WSL e viene mostrata su Windows tramite [WSLg](https://github.com/mi
 - **Profili d'ambiente**: gruppi di variabili (con riferimenti come `${PATH}`) e, se serve, uno script caricato con `source`. Si applicano alle app e ai terminali che avvii, senza toccare il resto del sistema. Se un'app ha più profili, al clic scegli con quale avviarla.
 - **Accesso root**: terminale root, modalità root del file manager (lettura e modifica di `/root`, `/etc`, …) e «Modifica come root» per i singoli file. L'interfaccia resta con il tuo utente: come root girano solo le operazioni richieste.
 - **Log delle app**: l'output di ogni app avviata finisce in un log. Se un'app si chiude subito con un errore, l'hub mostra le ultime righe.
+- **Interfaccia in italiano e in inglese**, selezionabile dalle Impostazioni.
 - **Avvio automatico** opzionale all'apertura di WSL, e istanza singola: aprirlo di nuovo porta in primo piano la finestra esistente.
 
 ## Requisiti
@@ -75,7 +76,7 @@ WSL Hub non include e non distribuisce Qt né altri SDK: i profili si limitano a
 
 ## Accesso root
 
-Il comportamento si sceglie con `root_method` in `config.json`:
+Il comportamento si sceglie nelle **Impostazioni** (icona a ingranaggio), oppure con `root_method` in `config.json`:
 
 | Valore | Come si ottiene root |
 |---|---|
@@ -84,12 +85,21 @@ Il comportamento si sceglie con `root_method` in `config.json`:
 
 `"auto"` non aggiunge rischi rispetto a una normale installazione di WSL, dove l'account Windows può già diventare root con `wsl -u root`. Se preferisci che la password venga chiesta ogni volta, usa `"sudo"`.
 
+## Impostazioni e lingua
+
+L'icona a ingranaggio nella barra del titolo apre le **Impostazioni**, dove puoi scegliere:
+
+- **Lingua**: italiano, inglese, oppure *Automatica*, che segue la lingua del sistema WSL (`LANG`) e in mancanza usa l'inglese. Il cambio di lingua richiede il riavvio di WSL Hub, che il dialogo propone di fare subito. Le schede del terminale aperte vengono chiuse, mentre le app avviate restano in esecuzione.
+- **Font del terminale**: applicato subito a tutte le schede aperte. Vengono proposti solo font monospazio.
+- **Accesso root**: vedi [Accesso root](#accesso-root).
+
 ## Configurazione
 
 Il file è `~/.config/wsl-hub/config.json` e viene creato al primo avvio. Si può modificare dal menu **☰ → Modifica config.json nel terminale** e poi applicare con **Ricarica la configurazione**.
 
 | Chiave | Descrizione |
 |---|---|
+| `language` | `"auto"`, `"en"` o `"it"`. |
 | `profiles` | Profili d'ambiente: `description`, `script`, `vars`. |
 | `apps` | App personalizzate: `name`, `command`, `icon` (nome di icona o percorso), `cwd`, `terminal` (per i programmi testuali), `profiles`. |
 | `bookmarks` | Segnalibri del file manager (`name`, `path`). |
@@ -127,9 +137,19 @@ I log delle app sono in `~/.cache/wsl-hub/logs/`.
 
 ## Limiti noti
 
-- L'interfaccia è in italiano.
+- Lingue disponibili: italiano e inglese (vedi [Aggiungere una lingua](#aggiungere-una-lingua)).
 - Pensato per distribuzioni Debian/Ubuntu: su altre distribuzioni vanno installate a mano le dipendenze equivalenti.
 - La modalità root del file manager non usa il cestino: l'eliminazione è definitiva, previa conferma.
+
+## Aggiungere una lingua
+
+Tutti i testi dell'interfaccia sono scritti in inglese in `wsl_hub.py` e passano dalla funzione `_()`. Per aggiungere una lingua:
+
+1. Aggiungi codice e nome a `LANGUAGES`, ad esempio `"de": "Deutsch"`.
+2. Aggiungi a `TRANSLATIONS` un dizionario che associa ogni stringa inglese alla sua traduzione. Il dizionario italiano è l'elenco completo delle stringhe da tradurre. Lascia invariati i segnaposto come `{name}`.
+3. Se la lingua ha regole per il plurale diverse dall'inglese («1 elemento» / «2 elementi»), estendi `ngettext()`.
+
+Le stringhe mancanti restano in inglese, quindi anche una traduzione parziale funziona.
 
 ## Licenza
 

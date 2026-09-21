@@ -2,19 +2,19 @@
 # -*- coding: utf-8 -*-
 # SPDX-License-Identifier: MIT
 """
-WSL Hub: terminale sempre presente, file manager e launcher di app per WSL.
-Gira dentro WSL e viene mostrato su Windows tramite WSLg.
+WSL Hub: an always-on terminal, a file manager and an app launcher for WSL.
+Runs inside WSL and is displayed on Windows through WSLg.
 
-Dipendenze (Ubuntu/Debian):
+Dependencies (Ubuntu/Debian):
     sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-vte-2.91 adwaita-icon-theme
 
-Configurazione: ~/.config/wsl-hub/config.json (creata al primo avvio).
-Log delle app avviate: ~/.cache/wsl-hub/logs/
+Configuration: ~/.config/wsl-hub/config.json (created on first launch).
+Logs of launched apps: ~/.cache/wsl-hub/logs/
 
-Scorciatoie:
-    Ctrl+Shift+T  nuova scheda terminale        Ctrl+Shift+W  chiudi scheda
-    Ctrl+Shift+C  copia dal terminale           Ctrl+Shift+V  incolla nel terminale
-    Ctrl+Shift+A  mostra/nascondi pannello app  Ctrl+Shift+F  cerca un'app
+Shortcuts:
+    Ctrl+Shift+T  new terminal tab             Ctrl+Shift+W  close tab
+    Ctrl+Shift+C  copy from the terminal       Ctrl+Shift+V  paste into the terminal
+    Ctrl+Shift+A  show/hide the app panel      Ctrl+Shift+F  search apps
 """
 
 import copy
@@ -50,38 +50,278 @@ DISTRO = os.environ.get("WSL_DISTRO_NAME", "Linux")
 HOME = str(Path.home())
 OWN_DESKTOP_ID = "wsl-hub.desktop"
 
-DEFAULT_CONFIG = {
-    "dark_theme": True,
-    "gtk_theme": "Adwaita",  # "" = usa il tema di sistema
-    "terminal_font": "JetBrains Mono 11",  # se manca, Pango usa un altro monospazio
-    "show_hidden": False,
-    "show_system_apps": True,
-    # Come ottenere i permessi di root:
-    #   "auto" = tramite wsl.exe -u root (nessuna password, come da PowerShell), altrimenti sudo
-    #   "sudo" = sempre sudo (chiede la tua password)
-    "root_method": "auto",
-    "bookmarks": [
-        {"name": "Home", "path": "~"},
-        {"name": "Radice /", "path": "/"},
-        {"name": "Windows C:", "path": "/mnt/c"},
-    ],
-    # Profili d'ambiente: variabili applicate prima di avviare un'app o un terminale.
-    # ${VAR} si riferisce al valore già presente (anche a variabili definite sopra).
-    # "script" (opzionale) viene caricato con `source` prima dell'avvio.
-    # Altri esempi (più versioni di Qt, SDK Yocto) in config.example.json.
-    "profiles": {
-        "Esempio": {
-            "description": "Profilo dimostrativo: modificalo o eliminalo",
-            "script": "",
-            "vars": {
-                "MY_TOOLS": "~/tools",
-                "PATH": "${MY_TOOLS}/bin:${PATH}",
+
+# --------------------------------------------------------------------------- #
+# Translations
+# --------------------------------------------------------------------------- #
+# The source language is English. To add a language, add its code to LANGUAGES
+# and a dictionary to TRANSLATIONS that maps each English string to its
+# translation. Missing strings fall back to English.
+LANGUAGES = {"en": "English", "it": "Italiano"}
+TRANSLATIONS = {
+    "it": {
+        "the file does not contain a JSON object": "il file non contiene un oggetto JSON",
+        "config.json is not valid ({error}). A copy was saved to {backup}; using the default values.": "config.json non valido ({error}). Copia salvata in {backup}; uso i valori predefiniti.",
+        "Wrong password.": "Password errata.",
+        "You need the password of your Linux user, the one you use with sudo.": "Serve la password del tuo utente Linux, quella che usi con sudo.",
+        "the process is not running as root": "il processo non è root",
+        "Wrong password?": "Password errata?",
+        "Could not get root permissions.": "Impossibile ottenere i permessi di root.",
+        "no response from the root process": "nessuna risposta dal processo root",
+        "the root process has exited": "il processo root si è chiuso",
+        "root mode is not active": "modalità root non attiva",
+        "root process not available ({error})": "processo root non disponibile ({error})",
+        "unknown error": "errore sconosciuto",
+        "Cancel": "Annulla",
+        "Root permissions": "Permessi di root",
+        "Confirm": "Conferma",
+        "Password for {user} (sudo):": "Password di {user} per sudo:",
+        "Close": "Chiudi",
+        "Terminal": "Terminale",
+        "Could not start the terminal: {error}": "Impossibile avviare il terminale: {error}",
+        "Copy": "Copia",
+        "Paste": "Incolla",
+        "Show this folder in the file panel": "Mostra questa cartella nel pannello file",
+        "New terminal (Ctrl+Shift+T)": "Nuovo terminale (Ctrl+Shift+T)",
+        "Terminal with profile": "Terminale con profilo",
+        "Open a shell with the variables of a profile": "Apri una shell con le variabili di un profilo",
+        "Root terminal": "Terminale root",
+        "Open a root shell in the current folder": "Apri una shell come root nella cartella corrente",
+        "No profiles defined": "Nessun profilo definito",
+        "Manage profiles…": "Gestisci profili…",
+        "Close (Ctrl+Shift+W)": "Chiudi (Ctrl+Shift+W)",
+        "Back": "Indietro",
+        "Parent folder": "Cartella superiore",
+        "Refresh": "Aggiorna",
+        "Show hidden files": "Mostra i file nascosti",
+        "follow": "segui",
+        "Follow the active terminal's folder": "Segui la cartella del terminale attivo",
+        "Root mode: view and edit files as administrator": "Modalità root: vedi e modifica i file come amministratore",
+        "Bookmarks": "Segnalibri",
+        "Name": "Nome",
+        "Size": "Dimensione",
+        "Modified": "Modificato",
+        "Root mode on: file changes are made as root": "Modalità root attiva: le modifiche ai file vengono fatte come root",
+        "Folder not found: {path}": "Cartella non trovata: {path}",
+        "%Y-%m-%d %H:%M": "%d/%m/%Y %H:%M",
+        "Permission denied for {path}: turn on “root” to see its contents": "Permesso negato per {path}: attiva «root» per vederne il contenuto",
+        "Could not read {path}: {error}": "Impossibile leggere {path}: {error}",
+        "Go to…": "Vai a…",
+        "New bookmark": "Nuovo segnalibro",
+        "Bookmark name:": "Nome del segnalibro:",
+        "Opened “{file}” with {app}": "Aperto «{file}» con {app}",
+        "{app} does not start ({error}); trying with Windows": "{app} non si avvia ({error}); provo con Windows",
+        "Edit as root": "Modifica come root",
+        "Open": "Apri",
+        "Open with the Windows program": "Apri con il programma di Windows",
+        "Root terminal here": "Terminale root qui",
+        "Go here in the terminal (cd)": "Vai qui nel terminale (cd)",
+        "New terminal here": "Nuovo terminale qui",
+        "Show in Windows File Explorer": "Mostra in Esplora file di Windows",
+        "Paste the path in the terminal": "Incolla il percorso nel terminale",
+        "Copy path": "Copia percorso",
+        "Copy Windows path": "Copia percorso Windows",
+        "Add to bookmarks…": "Aggiungi ai segnalibri…",
+        "Rename…": "Rinomina…",
+        "Delete permanently (root)…": "Elimina definitivamente (root)…",
+        "Move to trash": "Sposta nel cestino",
+        "New folder…": "Nuova cartella…",
+        "New empty file…": "Nuovo file vuoto…",
+        "wslpath is not available": "wslpath non disponibile",
+        "Rename": "Rinomina",
+        "New name for “{name}”:": "Nuovo nome per «{name}»:",
+        "The name cannot contain “/”.": "Il nome non può contenere «/».",
+        "An item named “{name}” already exists.": "Esiste già un elemento chiamato «{name}».",
+        "Could not rename “{name}”.": "Impossibile rinominare «{name}».",
+        "Permanently delete “{name}” as root?": "Eliminare definitivamente «{name}» come root?",
+        "{path}\n\nIn root mode the trash is not used and this cannot be undone.": "{path}\n\nIn modalità root il cestino non viene usato e l'operazione non si può annullare.",
+        "Delete permanently": "Elimina definitivamente",
+        "“{name}” deleted": "«{name}» eliminato",
+        "Could not delete “{name}”.": "Impossibile eliminare «{name}».",
+        "Move “{name}” to the trash?": "Spostare «{name}» nel cestino?",
+        "The trash is in ~/.local/share/Trash.": "Il cestino si trova in ~/.local/share/Trash.",
+        "“{name}” moved to the trash": "«{name}» spostato nel cestino",
+        "The trash is not available for “{name}”.": "Il cestino non è disponibile per «{name}».",
+        "{error}\n\nDelete it permanently? This cannot be undone.": "{error}\n\nEliminarlo definitivamente? L'operazione non si può annullare.",
+        "Could not create “{name}”.": "Impossibile creare «{name}».",
+        "Search apps": "Cerca un'app",
+        "Add app…": "Aggiungi app…",
+        "Show system apps": "Mostra le app di sistema",
+        "Untitled": "Senza nome",
+        "Profiles: ": "Profili: ",
+        "Right-click for more options": "Tasto destro per altre opzioni",
+        "Start {name} with:": "Avvia {name} con:",
+        "Start without a profile": "Avvia senza profilo",
+        "Start with profile": "Avvia con il profilo",
+        "Edit…": "Modifica…",
+        "Remove": "Rimuovi",
+        "Create a custom copy (to attach profiles)…": "Crea una copia personalizzata (per associare profili)…",
+        "Environment profiles": "Profili ambiente",
+        "Save": "Salva",
+        "New": "Nuovo",
+        "Duplicate": "Duplica",
+        "Delete": "Elimina",
+        "Optional, e.g. /opt/sdk/environment-setup": "Opzionale, es. /opt/sdk/environment-setup",
+        "Browse…": "Sfoglia…",
+        "Description": "Descrizione",
+        "Script loaded with “source” before launch, useful for SDKs that ship an environment-setup file.": "Script caricato con «source» prima dell'avvio, utile per gli SDK che forniscono un file environment-setup.",
+        "Variable": "Variabile",
+        "Value": "Valore",
+        "Add variable": "Aggiungi variabile",
+        "Remove variable": "Rimuovi variabile",
+        "Check values": "Verifica valori",
+        "<small>Double-click a cell to edit it. Use <tt>${NAME}</tt> to reuse an existing value, e.g. <tt>PATH = ${QTDIR}/bin:${PATH}</tt>. Variables are applied in the order they appear.</small>": "<small>Doppio clic su una cella per modificarla. Usa <tt>${NOME}</tt> per riutilizzare un valore esistente, es. <tt>PATH = ${QTDIR}/bin:${PATH}</tt>. Le variabili vengono applicate nell'ordine in cui compaiono.</small>",
+        "(untitled)": "(senza nome)",
+        "New profile": "Nuovo profilo",
+        " (copy)": " (copia)",
+        "Delete the profile “{name}”?": "Eliminare il profilo «{name}»?",
+        "Apps that use it will no longer offer it.": "Le app che lo usano non lo proporranno più.",
+        "Choose the environment script": "Scegli lo script d'ambiente",
+        "Choose": "Scegli",
+        "Script not found: {script}": "Script non trovato: {script}",
+        "{key}: the path {path} does not exist": "{key}: il percorso {path} non esiste",
+        "(no variables)": "(nessuna variabile)",
+        "Warning:\n  ": "Attenzione:\n  ",
+        "\n\n(Variables set by the script are not included in this preview.)": "\n\n(Le variabili impostate dallo script non sono incluse in questa anteprima.)",
+        "Resulting values for “{name}”": "Valori risultanti per «{name}»",
+        "Every profile needs a name.": "Ogni profilo deve avere un nome.",
+        "Duplicate profile names: ": "Nomi di profilo duplicati: ",
+        "Invalid variable names in profile “{name}”: ": "Nomi di variabile non validi nel profilo «{name}»: ",
+        "Use only letters, digits and _, no spaces, and do not start with a digit (e.g. QT_DIR, MY_SDK_ROOT).": "Usa solo lettere, cifre e _, senza spazi, e non iniziare con una cifra (es. QT_DIR, MY_SDK_ROOT).",
+        "Profile “{name}” still contains the placeholder NEW_VARIABLE.": "Il profilo «{name}» contiene ancora il segnaposto NEW_VARIABLE.",
+        "Save anyway?": "Salvare comunque?",
+        "Edit app": "Modifica app",
+        "New app": "Nuova app",
+        "e.g. qtcreator or /opt/app/bin/app --option": "es. qtcreator oppure /opt/app/bin/app --opzione",
+        "Theme icon name or image path": "Nome di icona del tema o percorso di un'immagine",
+        "Empty = home": "Vuoto = home",
+        "Run in a terminal tab (for text-mode programs)": "Esegui in una scheda del terminale (per programmi testuali)",
+        "Command": "Comando",
+        "Icon": "Icona",
+        "Working folder": "Cartella di lavoro",
+        "Environment profiles to offer at launch": "Profili ambiente da proporre all'avvio",
+        "No profiles: create one from “Environment profiles”.": "Nessun profilo: creane uno da «Profili ambiente».",
+        "<small>With several profiles selected, you choose the environment when you click the icon. With just one, it is used directly.</small>": "<small>Con più profili selezionati, al clic sull'icona scegli l'ambiente. Con uno solo, viene usato direttamente.</small>",
+        "Name and command are required.": "Nome e comando sono obbligatori.",
+        "The command is not valid.": "Il comando non è valido.",
+        "Edit config.json in the terminal": "Modifica config.json nel terminale",
+        "Reload configuration": "Ricarica la configurazione",
+        "Open the log folder": "Apri la cartella dei log",
+        "Apps": "App",
+        "Show or hide the app panel (Ctrl+Shift+A)": "Mostra o nascondi il pannello delle app (Ctrl+Shift+A)",
+        "<small>Ctrl+Shift+T  new tab     Ctrl+Shift+F  search apps</small>": "<small>Ctrl+Shift+T  nuova scheda     Ctrl+Shift+F  cerca app</small>",
+        "Ready. Configuration: {path}": "Pronto. Configurazione: {path}",
+        "Copied: {text}": "Copiato: {text}",
+        "Windows interoperability is not available in this distribution": "L'interoperabilità con Windows non è disponibile in questa distro",
+        "The active terminal is running a program: opening a new tab": "Il terminale attivo sta eseguendo un programma: apro una nuova scheda",
+        "The profile “{name}” no longer exists": "Il profilo «{name}» non esiste più",
+        "Invalid command for {app}: {error}": "Comando non valido per {app}: {error}",
+        "No command configured for {app}": "Nessun comando configurato per {app}",
+        " with the PATH of profile “{name}”": " con il PATH del profilo «{name}»",
+        "Command not found{where}: {command}": "Comando non trovato{where}: {command}",
+        "Could not start {app}: {error}": "Impossibile avviare {app}: {error}",
+        "Started {app}": "Avviato {app}",
+        "{app} exited with code {code}": "{app} si è chiuso con codice {code}",
+        "{app} exited right away (code {code})": "{app} si è chiuso subito (codice {code})",
+        "Full log: {path}\n\n": "Log completo: {path}\n\n",
+        "Remove “{name}” from the panel?": "Rimuovere «{name}» dal pannello?",
+        "The program stays installed: only the icon is removed.": "Il programma resta installato: viene tolta solo l'icona.",
+        "Profiles saved": "Profili salvati",
+        "Configuration reloaded": "Configurazione ricaricata",
+        "After saving, use “Reload configuration” from the menu": "Dopo aver salvato, usa «Ricarica la configurazione» dal menu",
+        "New folder": "Nuova cartella",
+        "New file": "Nuovo file",
+        "Name of the new folder in {path}:": "Nome della nuova cartella in {path}:",
+        "Name of the new file in {path}:": "Nome del nuovo file in {path}:",
+        "{n} profile": "{n} profilo",
+        "{n} profiles": "{n} profili",
+        "Error:": "Errore:",
+        "Settings": "Impostazioni",
+        "Language": "Lingua",
+        "Automatic (system language)": "Automatica (lingua del sistema)",
+        "Terminal font": "Font del terminale",
+        "Root access": "Accesso root",
+        "Automatic: wsl.exe, no password": "Automatico: wsl.exe, senza password",
+        "sudo: asks for your password": "sudo: chiede la tua password",
+        "A language change takes effect after restarting WSL Hub.": "Il cambio di lingua ha effetto dopo il riavvio di WSL Hub.",
+        "Restart WSL Hub now to apply the language?": "Riavviare ora WSL Hub per applicare la lingua?",
+        "Open terminal tabs will be closed. Apps you started keep running.": "Le schede del terminale aperte verranno chiuse. Le app avviate restano in esecuzione.",
+        "Restart now": "Riavvia ora",
+        "The new language will be used the next time WSL Hub starts": "La nuova lingua sarà usata al prossimo avvio di WSL Hub",
+        "Settings saved": "Impostazioni salvate",
+        "Root /": "Radice /",
+        "Example": "Esempio",
+        "Demo profile: edit or delete it": "Profilo dimostrativo: modificalo o eliminalo",
+    },
+}
+_current_language = "en"
+
+
+def detect_language():
+    """Language from the environment (LANGUAGE, LC_ALL, LC_MESSAGES, LANG); English if unsupported."""
+    for var in ("LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"):
+        value = os.environ.get(var, "")
+        if value:
+            code = re.split(r"[_.:@]", value, maxsplit=1)[0].lower()
+            return code if code in LANGUAGES else "en"
+    return "en"
+
+
+def set_language(preference):
+    """preference: a code from LANGUAGES, or "auto" to follow the system."""
+    global _current_language
+    _current_language = preference if preference in LANGUAGES else detect_language()
+
+
+def current_language():
+    return _current_language
+
+
+def _(text):
+    return TRANSLATIONS.get(_current_language, {}).get(text, text)
+
+
+def ngettext(singular, plural, n):
+    # English and Italian use the singular only for 1; languages with other
+    # plural rules will need a dedicated function here.
+    return _(singular if n == 1 else plural)
+
+def default_config():
+    """Default configuration, with names in the current language."""
+    return {
+        "language": "auto",  # "auto" follows the system; otherwise a code from LANGUAGES
+        "dark_theme": True,
+        "gtk_theme": "Adwaita",  # "" = use the system theme
+        "terminal_font": "JetBrains Mono 11",  # if missing, Pango uses another monospace font
+        "show_hidden": False,
+        "show_system_apps": True,
+        # How root permissions are obtained:
+        #   "auto" = through wsl.exe -u root (no password, as from PowerShell), otherwise sudo
+        #   "sudo" = always sudo (asks for your password)
+        "root_method": "auto",
+        "bookmarks": [
+            {"name": _("Home"), "path": "~"},
+            {"name": _("Root /"), "path": "/"},
+            {"name": "Windows C:", "path": "/mnt/c"},
+        ],
+        # Environment profiles: variables applied before starting an app or a terminal.
+        # ${VAR} refers to the existing value (including variables defined above).
+        # "script" (optional) is loaded with `source` before launch.
+        # More examples (several Qt versions, Yocto SDKs) in config.example.json.
+        "profiles": {
+            _("Example"): {
+                "description": _("Demo profile: edit or delete it"),
+                "script": "",
+                "vars": {
+                    "MY_TOOLS": "~/tools",
+                    "PATH": "${MY_TOOLS}/bin:${PATH}",
+                },
             },
         },
-    },
-    # App personalizzate mostrate nel pannello (oltre a quelle di sistema).
-    "apps": [],
-}
+        # Custom apps shown in the panel (in addition to the system ones).
+        "apps": [],
+    }
+
 
 TERM_FG = "#d7dae0"
 TERM_BG = "#1f2329"
@@ -270,20 +510,21 @@ class Config:
 
     def _load(self):
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        set_language("auto")
         if not CONFIG_FILE.exists():
-            self._write(DEFAULT_CONFIG)
+            self._write(default_config())
         try:
             data = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
             if not isinstance(data, dict):
-                raise ValueError("il file non contiene un oggetto JSON")
+                raise ValueError(_('the file does not contain a JSON object'))
         except Exception as exc:  # noqa: BLE001
             backup = CONFIG_FILE.with_name("config.json.bad")
             shutil.copy(CONFIG_FILE, backup)
-            self.error = (f"config.json non valido ({exc}). Copia salvata in {backup}; "
-                          "uso i valori predefiniti.")
-            data = copy.deepcopy(DEFAULT_CONFIG)
-        for key, value in DEFAULT_CONFIG.items():
-            data.setdefault(key, copy.deepcopy(value))
+            self.error = (_('config.json is not valid ({error}). A copy was saved to {backup}; using the default values.').format(error=exc, backup=backup))
+            data = default_config()
+        set_language(data.get("language", "auto"))
+        for key, value in default_config().items():
+            data.setdefault(key, value)
         return data
 
     @staticmethod
@@ -344,7 +585,7 @@ def wrap_with_script(argv, profile):
         return list(argv)
     script = os.path.expanduser(script)
     return ["bash", "-c",
-            'source "$0" || echo "WSL Hub: errore caricando $0" >&2; exec "$@"',
+            'source "$0" || echo "WSL Hub: error loading $0" >&2; exec "$@"',
             script, *argv]
 
 
@@ -424,7 +665,7 @@ for line in sys.stdin:
                 os.remove(p)
             res = {}
         else:
-            raise ValueError("operazione sconosciuta: %s" % op)
+            raise ValueError("unknown operation: %s" % op)
         res.update(id=rid, ok=True)
     except OSError as exc:
         res = {"id": rid, "ok": False, "error": exc.strerror or str(exc)}
@@ -491,8 +732,8 @@ class RootHelper:
                                    input=(password + "\n").encode(),
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if check.returncode != 0:
-                message(self.hub.window, "Password errata.",
-                        "Serve la password del tuo utente Linux, quella che usi con sudo.")
+                message(self.hub.window, _('Wrong password.'),
+                        _('You need the password of your Linux user, the one you use with sudo.'))
                 return False
             cmd = ["sudo", "-S", "-p", "", "/usr/bin/python3", "-u", str(helper)]
         err_path = CACHE_DIR / "root_helper.err"
@@ -506,13 +747,13 @@ class RootHelper:
         try:
             ready = json.loads(self._readline(25))
             if ready.get("uid") != 0:
-                raise RootError("il processo non è root")
+                raise RootError(_('the process is not running as root'))
         except (OSError, EOFError, TimeoutError, ValueError) as exc:
             self.stop()
             detail = err_path.read_text(errors="replace").strip() if err_path.exists() else ""
             if password is not None and not detail:
-                detail = "Password errata?"
-            message(self.hub.window, "Impossibile ottenere i permessi di root.",
+                detail = _('Wrong password?')
+            message(self.hub.window, _('Could not get root permissions.'),
                     detail or str(exc))
             return False
         self.method = method
@@ -536,19 +777,19 @@ class RootHelper:
         while b"\n" not in self._buf:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise TimeoutError("nessuna risposta dal processo root")
-            ready, _, _ = select.select([fd], [], [], remaining)
+                raise TimeoutError(_('no response from the root process'))
+            ready, _unused, _unused2 = select.select([fd], [], [], remaining)
             if ready:
                 chunk = os.read(fd, 65536)
                 if not chunk:
-                    raise EOFError("il processo root si è chiuso")
+                    raise EOFError(_('the root process has exited'))
                 self._buf += chunk
-        line, _, self._buf = self._buf.partition(b"\n")
+        line, _sep, self._buf = self._buf.partition(b"\n")
         return line
 
     def call(self, op, **kwargs):
         if not self.alive():
-            raise RootError("modalità root non attiva")
+            raise RootError(_('root mode is not active'))
         self._next_id += 1
         request = dict(kwargs, id=self._next_id, op=op)
         try:
@@ -560,9 +801,9 @@ class RootHelper:
                     break
         except (OSError, EOFError, TimeoutError, ValueError) as exc:
             self.stop()
-            raise RootError(f"processo root non disponibile ({exc})") from None
+            raise RootError(_('root process not available ({error})').format(error=exc)) from None
         if not reply.get("ok"):
-            raise RootError(reply.get("error", "errore sconosciuto"))
+            raise RootError(reply.get("error", _('unknown error')))
         return reply
 
 
@@ -575,7 +816,7 @@ FALLBACK_APP_ICON = "application-x-executable"
 
 
 def icon_for_file(name):
-    ctype, _ = Gio.content_type_guess(name, None)
+    ctype, _uncertain = Gio.content_type_guess(name, None)
     icon = _ICON_CACHE.get(ctype)
     if icon is None:
         icon = Gio.content_type_get_icon(ctype)
@@ -643,7 +884,7 @@ def confirm(parent, text, secondary=None, ok_label="OK"):
                             buttons=Gtk.ButtonsType.NONE, text=text)
     if secondary:
         dlg.format_secondary_text(secondary)
-    dlg.add_buttons("Annulla", Gtk.ResponseType.CANCEL, ok_label, Gtk.ResponseType.OK)
+    dlg.add_buttons(_('Cancel'), Gtk.ResponseType.CANCEL, ok_label, Gtk.ResponseType.OK)
     dlg.set_default_response(Gtk.ResponseType.OK)
     ok = dlg.run() == Gtk.ResponseType.OK
     dlg.destroy()
@@ -652,7 +893,7 @@ def confirm(parent, text, secondary=None, ok_label="OK"):
 
 def ask_text(parent, title, label, initial=""):
     dlg = Gtk.Dialog(title=title, transient_for=parent, modal=True)
-    dlg.add_buttons("Annulla", Gtk.ResponseType.CANCEL, "OK", Gtk.ResponseType.OK)
+    dlg.add_buttons(_('Cancel'), Gtk.ResponseType.CANCEL, "OK", Gtk.ResponseType.OK)
     dlg.set_default_response(Gtk.ResponseType.OK)
     box = dlg.get_content_area()
     box.set_spacing(6)
@@ -670,13 +911,13 @@ def ask_text(parent, title, label, initial=""):
 
 
 def ask_password(parent):
-    dlg = Gtk.Dialog(title="Permessi di root", transient_for=parent, modal=True)
-    dlg.add_buttons("Annulla", Gtk.ResponseType.CANCEL, "Conferma", Gtk.ResponseType.OK)
+    dlg = Gtk.Dialog(title=_('Root permissions'), transient_for=parent, modal=True)
+    dlg.add_buttons(_('Cancel'), Gtk.ResponseType.CANCEL, _('Confirm'), Gtk.ResponseType.OK)
     dlg.set_default_response(Gtk.ResponseType.OK)
     box = dlg.get_content_area()
     box.set_spacing(6)
     box.set_border_width(12)
-    box.add(Gtk.Label(label=f"Password di {os.environ.get('USER', 'utente')} per sudo:", xalign=0))
+    box.add(Gtk.Label(label=_('Password for {user} (sudo):').format(user=os.environ.get('USER', '?')), xalign=0))
     entry = Gtk.Entry(visibility=False, activates_default=True, width_chars=30,
                       input_purpose=Gtk.InputPurpose.PASSWORD)
     box.add(entry)
@@ -689,7 +930,7 @@ def ask_password(parent):
 
 def show_text(parent, title, text):
     dlg = Gtk.Dialog(title=title, transient_for=parent, modal=True)
-    dlg.add_buttons("Chiudi", Gtk.ResponseType.CLOSE)
+    dlg.add_buttons(_('Close'), Gtk.ResponseType.CLOSE)
     dlg.set_default_size(720, 380)
     view = Gtk.TextView(editable=False, monospace=True, wrap_mode=Gtk.WrapMode.WORD_CHAR)
     view.get_buffer().set_text(text)
@@ -721,7 +962,7 @@ class TerminalTab(Gtk.ScrolledWindow):
         self.hub = hub
         self.pid = None
         self.root = root
-        self.title = title or ("root" if root else profile_name or "Terminale")
+        self.title = title or ("root" if root else profile_name or _('Terminal'))
 
         self.term = Vte.Terminal()
         self.term.set_scrollback_lines(10000)
@@ -756,7 +997,7 @@ class TerminalTab(Gtk.ScrolledWindow):
     def _on_spawned(self, _term, pid, error, *_args):
         if error is not None or pid is None or pid < 0:
             msg = getattr(error, "message", str(error))
-            self.hub.status(f"Impossibile avviare il terminale: {msg}", error=True)
+            self.hub.status(_('Could not start the terminal: {error}').format(error=msg), error=True)
         else:
             self.pid = pid
 
@@ -815,10 +1056,10 @@ class TerminalTab(Gtk.ScrolledWindow):
         if event.type != Gdk.EventType.BUTTON_PRESS or event.button != 3:
             return False
         menu = Gtk.Menu()
-        add_menu_item(menu, "Copia", self.copy, sensitive=self.term.get_has_selection())
-        add_menu_item(menu, "Incolla", self.term.paste_clipboard)
+        add_menu_item(menu, _('Copy'), self.copy, sensitive=self.term.get_has_selection())
+        add_menu_item(menu, _('Paste'), self.term.paste_clipboard)
         menu.append(Gtk.SeparatorMenuItem())
-        add_menu_item(menu, "Mostra questa cartella nel pannello file",
+        add_menu_item(menu, _('Show this folder in the file panel'),
                       lambda: self.hub.files.navigate(self.cwd()), sensitive=bool(self.cwd()))
         show_menu(menu, widget, event)
         return True
@@ -839,16 +1080,16 @@ class TerminalPanel(Gtk.Box):
         actions.set_margin_bottom(4)
         new_btn = Gtk.Button.new_from_icon_name("tab-new-symbolic", Gtk.IconSize.MENU)
         new_btn.set_relief(Gtk.ReliefStyle.NONE)
-        new_btn.set_tooltip_text("Nuovo terminale (Ctrl+Shift+T)")
+        new_btn.set_tooltip_text(_('New terminal (Ctrl+Shift+T)'))
         new_btn.connect("clicked", lambda _b: self.new_tab(cwd=self.current_cwd()))
-        self.profile_btn = Gtk.MenuButton(label="Terminale con profilo")
+        self.profile_btn = Gtk.MenuButton(label=_('Terminal with profile'))
         self.profile_btn.get_style_context().add_class("flat-btn")
         self.profile_btn.set_relief(Gtk.ReliefStyle.NONE)
-        self.profile_btn.set_tooltip_text("Apri una shell con le variabili di un profilo")
-        root_btn = Gtk.Button(label="Terminale root")
+        self.profile_btn.set_tooltip_text(_('Open a shell with the variables of a profile'))
+        root_btn = Gtk.Button(label=_('Root terminal'))
         root_btn.get_style_context().add_class("root-btn")
         root_btn.set_relief(Gtk.ReliefStyle.NONE)
-        root_btn.set_tooltip_text("Apri una shell come root nella cartella corrente")
+        root_btn.set_tooltip_text(_('Open a root shell in the current folder'))
         root_btn.connect("clicked", lambda _b: self.new_tab(cwd=self.hub.files.path, root=True))
         actions.pack_start(new_btn, False, False, 0)
         actions.pack_start(self.profile_btn, False, False, 0)
@@ -863,11 +1104,11 @@ class TerminalPanel(Gtk.Box):
         menu = Gtk.Menu()
         profiles = self.hub.config["profiles"]
         if not profiles:
-            add_menu_item(menu, "Nessun profilo definito")
+            add_menu_item(menu, _('No profiles defined'))
         for name in profiles:
             add_menu_item(menu, name, self.new_tab_with_profile, name)
         menu.append(Gtk.SeparatorMenuItem())
-        add_menu_item(menu, "Gestisci profili…", self.hub.open_profiles)
+        add_menu_item(menu, _('Manage profiles…'), self.hub.open_profiles)
         menu.show_all()
         self.profile_btn.set_popup(menu)
 
@@ -884,7 +1125,7 @@ class TerminalPanel(Gtk.Box):
         close = Gtk.Button.new_from_icon_name("window-close-symbolic", Gtk.IconSize.MENU)
         close.set_relief(Gtk.ReliefStyle.NONE)
         close.set_focus_on_click(False)
-        close.set_tooltip_text("Chiudi (Ctrl+Shift+W)")
+        close.set_tooltip_text(_('Close (Ctrl+Shift+W)'))
         close.connect("clicked", lambda _b: self.close_tab(tab))
         header.pack_start(close, False, False, 0)
         header.show_all()
@@ -940,25 +1181,25 @@ class FilePanel(Gtk.Box):
 
         bar = Gtk.Box(spacing=4)
         bar.get_style_context().add_class("panel-toolbar")
-        self.back_btn = self._tool("go-previous-symbolic", "Indietro", self.go_back)
+        self.back_btn = self._tool("go-previous-symbolic", _('Back'), self.go_back)
         nav = Gtk.Box(spacing=3)
         for widget in (self.back_btn,
-                       self._tool("go-up-symbolic", "Cartella superiore", self.go_up),
+                       self._tool("go-up-symbolic", _('Parent folder'), self.go_up),
                        self._tool("go-home-symbolic", "Home", lambda: self.navigate(HOME)),
-                       self._tool("view-refresh-symbolic", "Aggiorna", self.refresh)):
+                       self._tool("view-refresh-symbolic", _('Refresh'), self.refresh)):
             nav.pack_start(widget, False, False, 0)
         bar.pack_start(nav, False, False, 0)
 
         # interruttori raccolti in un unico blocco segmentato
         self.hidden_btn = Gtk.ToggleButton(label=".*")
-        self.hidden_btn.set_tooltip_text("Mostra i file nascosti")
+        self.hidden_btn.set_tooltip_text(_('Show hidden files'))
         self.hidden_btn.set_active(bool(hub.config["show_hidden"]))
         self.hidden_btn.connect("toggled", self._on_hidden)
-        self.follow_btn = Gtk.ToggleButton(label="segui")
-        self.follow_btn.set_tooltip_text("Segui la cartella del terminale attivo")
+        self.follow_btn = Gtk.ToggleButton(label=_('follow'))
+        self.follow_btn.set_tooltip_text(_("Follow the active terminal's folder"))
         self.follow_btn.connect("toggled", self._on_follow)
         self.root_btn = Gtk.ToggleButton(label="root")
-        self.root_btn.set_tooltip_text("Modalità root: vedi e modifica i file come amministratore")
+        self.root_btn.set_tooltip_text(_('Root mode: view and edit files as administrator'))
         self.root_btn.get_style_context().add_class("root-toggle")
         self.root_btn.connect("toggled", self._on_root_toggled)
         toggles = Gtk.Box(spacing=2)
@@ -982,7 +1223,7 @@ class FilePanel(Gtk.Box):
         path_row.pack_start(self.entry, True, True, 0)
         self.places = Gtk.ComboBoxText()
         self.places.set_size_request(96, -1)
-        self.places.set_tooltip_text("Segnalibri")
+        self.places.set_tooltip_text(_('Bookmarks'))
         self.places.connect("changed", self._on_place)
         path_row.pack_start(self.places, False, False, 0)
         self.pack_start(path_row, False, False, 0)
@@ -990,7 +1231,7 @@ class FilePanel(Gtk.Box):
         self.store = Gtk.ListStore(Gio.Icon, str, str, str, str, bool)
         self.view = Gtk.TreeView(model=self.store)
         self.view.set_search_column(self.COL_NAME)
-        name_col = Gtk.TreeViewColumn("Nome")
+        name_col = Gtk.TreeViewColumn(_('Name'))
         name_col.set_expand(True)
         name_col.set_resizable(True)
         pix = Gtk.CellRendererPixbuf()
@@ -1000,7 +1241,7 @@ class FilePanel(Gtk.Box):
         name_col.pack_start(txt, True)
         name_col.add_attribute(txt, "text", self.COL_NAME)
         self.view.append_column(name_col)
-        for title, idx in (("Dimensione", self.COL_SIZE), ("Modificato", self.COL_MTIME)):
+        for title, idx in ((_('Size'), self.COL_SIZE), (_('Modified'), self.COL_MTIME)):
             col = Gtk.TreeViewColumn(title, Gtk.CellRendererText(), text=idx)
             col.set_resizable(True)
             self.view.append_column(col)
@@ -1064,7 +1305,7 @@ class FilePanel(Gtk.Box):
                 return
             self.root_mode = True
             self.entry.get_style_context().add_class("root-mode")
-            self.hub.status("Modalità root attiva: le modifiche ai file vengono fatte come root")
+            self.hub.status(_('Root mode on: file changes are made as root'))
         else:
             self.root_mode = False
             self.entry.get_style_context().remove_class("root-mode")
@@ -1088,7 +1329,7 @@ class FilePanel(Gtk.Box):
             return
         path = os.path.abspath(os.path.expanduser(path))
         if not self._isdir(path):
-            self.hub.status(f"Cartella non trovata: {path}", error=True)
+            self.hub.status(_('Folder not found: {path}').format(path=path), error=True)
             self.entry.set_text(self.path)
             return
         if record and path != self.path:
@@ -1116,16 +1357,15 @@ class FilePanel(Gtk.Box):
                 if not show_hidden and name.startswith("."):
                     continue
                 size_text = "" if is_dir or size < 0 else GLib.format_size(size)
-                mtime_text = (time.strftime("%d/%m/%Y %H:%M", time.localtime(mtime))
+                mtime_text = (time.strftime(_('%Y-%m-%d %H:%M'), time.localtime(mtime))
                               if mtime else "")
                 icon = FOLDER_ICON if is_dir else icon_for_file(name)
                 rows.append((icon, name, size_text, mtime_text,
                              os.path.join(self.path, name), is_dir))
         except PermissionError:
-            self.hub.status(f"Permesso negato per {self.path}: attiva «root» per vederne "
-                            "il contenuto", error=True)
+            self.hub.status(_('Permission denied for {path}: turn on “root” to see its contents').format(path=self.path), error=True)
         except OSError as exc:
-            self.hub.status(f"Impossibile leggere {self.path}: {exc.strerror}", error=True)
+            self.hub.status(_('Could not read {path}: {error}').format(path=self.path, error=exc.strerror), error=True)
         rows.sort(key=lambda r: (not r[5], r[1].casefold()))
         self.view.set_model(None)
         self.store.clear()
@@ -1159,7 +1399,7 @@ class FilePanel(Gtk.Box):
     def rebuild_places(self):
         self._updating_places = True
         self.places.remove_all()
-        self.places.append_text("Vai a…")
+        self.places.append_text(_('Go to…'))
         for bm in self.hub.config["bookmarks"]:
             self.places.append_text(bm.get("name") or bm.get("path", "?"))
         self.places.set_active(0)
@@ -1175,7 +1415,7 @@ class FilePanel(Gtk.Box):
         GLib.idle_add(combo.set_active, 0)
 
     def _add_bookmark(self, path):
-        name = ask_text(self.hub.window, "Nuovo segnalibro", "Nome del segnalibro:",
+        name = ask_text(self.hub.window, _('New bookmark'), _('Bookmark name:'),
                         os.path.basename(path) or path)
         if name:
             self.hub.config["bookmarks"].append({"name": name, "path": path})
@@ -1196,7 +1436,7 @@ class FilePanel(Gtk.Box):
         if self.root_mode:
             self.hub.edit_as_root(path)
             return
-        ctype, _ = Gio.content_type_guess(path, None)
+        ctype, _uncertain = Gio.content_type_guess(path, None)
         app = Gio.AppInfo.get_default_for_type(ctype, False)
         if app is not None:
             if isinstance(app, Gio.DesktopAppInfo) and app.get_boolean("Terminal"):
@@ -1206,11 +1446,10 @@ class FilePanel(Gtk.Box):
                 return
             try:
                 app.launch([Gio.File.new_for_path(path)], None)
-                self.hub.status(f"Aperto «{os.path.basename(path)}» con {app.get_name()}")
+                self.hub.status(_('Opened “{file}” with {app}').format(file=os.path.basename(path), app=app.get_name()))
                 return
             except GLib.Error as exc:
-                self.hub.status(f"{app.get_name()} non si avvia ({exc.message}); "
-                                "provo con Windows", error=True)
+                self.hub.status(_('{app} does not start ({error}); trying with Windows').format(app=app.get_name(), error=exc.message), error=True)
         # nessuna app Linux associata: lo apre Windows con il suo programma predefinito
         self.hub.open_in_windows(path)
 
@@ -1234,36 +1473,36 @@ class FilePanel(Gtk.Box):
         folder = self.path
         root = self.root_mode
         if target:
-            add_menu_item(menu, "Modifica come root" if root and not is_dir else "Apri",
+            add_menu_item(menu, _('Edit as root') if root and not is_dir else _('Open'),
                           self.open, target, is_dir)
             if not is_dir and not root:
-                add_menu_item(menu, "Apri con il programma di Windows", hub.open_in_windows, target)
-                add_menu_item(menu, "Modifica come root", hub.edit_as_root, target)
+                add_menu_item(menu, _('Open with the Windows program'), hub.open_in_windows, target)
+                add_menu_item(menu, _('Edit as root'), hub.edit_as_root, target)
             menu.append(Gtk.SeparatorMenuItem())
             folder = target if is_dir else os.path.dirname(target)
         if root:
-            add_menu_item(menu, "Terminale root qui",
+            add_menu_item(menu, _('Root terminal here'),
                           lambda: hub.terminals.new_tab(cwd=folder, root=True))
         else:
-            add_menu_item(menu, "Vai qui nel terminale (cd)", hub.cd_in_terminal, folder)
-            add_menu_item(menu, "Nuovo terminale qui", lambda: hub.terminals.new_tab(cwd=folder))
-            add_menu_item(menu, "Terminale root qui",
+            add_menu_item(menu, _('Go here in the terminal (cd)'), hub.cd_in_terminal, folder)
+            add_menu_item(menu, _('New terminal here'), lambda: hub.terminals.new_tab(cwd=folder))
+            add_menu_item(menu, _('Root terminal here'),
                           lambda: hub.terminals.new_tab(cwd=folder, root=True))
-            add_menu_item(menu, "Mostra in Esplora file di Windows", hub.open_in_windows, folder)
+            add_menu_item(menu, _('Show in Windows File Explorer'), hub.open_in_windows, folder)
         menu.append(Gtk.SeparatorMenuItem())
         if target:
-            add_menu_item(menu, "Incolla il percorso nel terminale", hub.paste_in_terminal, target)
-            add_menu_item(menu, "Copia percorso", hub.copy_text, target)
-            add_menu_item(menu, "Copia percorso Windows", self._copy_windows_path, target)
+            add_menu_item(menu, _('Paste the path in the terminal'), hub.paste_in_terminal, target)
+            add_menu_item(menu, _('Copy path'), hub.copy_text, target)
+            add_menu_item(menu, _('Copy Windows path'), self._copy_windows_path, target)
             if is_dir:
-                add_menu_item(menu, "Aggiungi ai segnalibri…", self._add_bookmark, target)
+                add_menu_item(menu, _('Add to bookmarks…'), self._add_bookmark, target)
             menu.append(Gtk.SeparatorMenuItem())
-            add_menu_item(menu, "Rinomina…", self._rename, target)
-            add_menu_item(menu, "Elimina definitivamente (root)…" if root else "Sposta nel cestino",
+            add_menu_item(menu, _('Rename…'), self._rename, target)
+            add_menu_item(menu, _('Delete permanently (root)…') if root else _('Move to trash'),
                           self._trash, target)
             menu.append(Gtk.SeparatorMenuItem())
-        add_menu_item(menu, "Nuova cartella…", self._new_item, True)
-        add_menu_item(menu, "Nuovo file vuoto…", self._new_item, False)
+        add_menu_item(menu, _('New folder…'), self._new_item, True)
+        add_menu_item(menu, _('New empty file…'), self._new_item, False)
         return menu
 
     def _copy_windows_path(self, path):
@@ -1271,67 +1510,64 @@ class FilePanel(Gtk.Box):
         if win:
             self.hub.copy_text(win)
         else:
-            self.hub.status("wslpath non disponibile", error=True)
+            self.hub.status(_('wslpath is not available'), error=True)
 
     def _rename(self, path):
         old = os.path.basename(path)
-        name = ask_text(self.hub.window, "Rinomina", f"Nuovo nome per «{old}»:", old)
+        name = ask_text(self.hub.window, _('Rename'), _('New name for “{name}”:').format(name=old), old)
         if not name or name == old:
             return
         if "/" in name:
-            message(self.hub.window, "Il nome non può contenere «/».")
+            message(self.hub.window, _('The name cannot contain “/”.'))
             return
         dest = os.path.join(os.path.dirname(path), name)
         try:
             if self._exists(dest):
-                message(self.hub.window, f"Esiste già un elemento chiamato «{name}».")
+                message(self.hub.window, _('An item named “{name}” already exists.').format(name=name))
                 return
             self._fs("rename", src=path, dst=dest)
         except OSError as exc:
-            message(self.hub.window, f"Impossibile rinominare «{old}».", exc.strerror)
+            message(self.hub.window, _('Could not rename “{name}”.').format(name=old), exc.strerror)
         self.refresh()
 
     def _trash(self, path):
         name = os.path.basename(path)
         if self.root_mode:
-            if confirm(self.hub.window, f"Eliminare definitivamente «{name}» come root?",
-                       f"{path}\n\nIn modalità root il cestino non viene usato e l'operazione "
-                       "non si può annullare.", "Elimina definitivamente"):
+            if confirm(self.hub.window, _('Permanently delete “{name}” as root?').format(name=name),
+                       _('{path}\n\nIn root mode the trash is not used and this cannot be undone.').format(path=path), _('Delete permanently')):
                 try:
                     self._fs("delete", path=path)
-                    self.hub.status(f"«{name}» eliminato")
+                    self.hub.status(_('“{name}” deleted').format(name=name))
                 except OSError as exc:
-                    message(self.hub.window, f"Impossibile eliminare «{name}».", exc.strerror)
+                    message(self.hub.window, _('Could not delete “{name}”.').format(name=name), exc.strerror)
             self.refresh()
             return
-        if not confirm(self.hub.window, f"Spostare «{name}» nel cestino?",
-                       "Il cestino si trova in ~/.local/share/Trash.", "Sposta nel cestino"):
+        if not confirm(self.hub.window, _('Move “{name}” to the trash?').format(name=name),
+                       _('The trash is in ~/.local/share/Trash.'), _('Move to trash')):
             return
         try:
             Gio.File.new_for_path(path).trash(None)
-            self.hub.status(f"«{name}» spostato nel cestino")
+            self.hub.status(_('“{name}” moved to the trash').format(name=name))
         except GLib.Error as exc:
-            if confirm(self.hub.window, f"Il cestino non è disponibile per «{name}».",
-                       f"{exc.message}\n\nEliminarlo definitivamente? L'operazione non si "
-                       "può annullare.", "Elimina definitivamente"):
+            if confirm(self.hub.window, _('The trash is not available for “{name}”.').format(name=name),
+                       _('{error}\n\nDelete it permanently? This cannot be undone.').format(error=exc.message), _('Delete permanently')):
                 try:
                     self._fs("delete", path=path)
-                    self.hub.status(f"«{name}» eliminato")
+                    self.hub.status(_('“{name}” deleted').format(name=name))
                 except OSError as err:
-                    message(self.hub.window, f"Impossibile eliminare «{name}».", err.strerror)
+                    message(self.hub.window, _('Could not delete “{name}”.').format(name=name), err.strerror)
         self.refresh()
 
     def _new_item(self, is_dir):
-        what = "cartella" if is_dir else "file"
-        name = ask_text(self.hub.window, f"Nuova {what}" if is_dir else "Nuovo file",
-                        f"Nome del nuovo {what} in {self.path}:")
+        name = ask_text(self.hub.window, _("New folder") if is_dir else _("New file"),
+                        (_("Name of the new folder in {path}:") if is_dir else _("Name of the new file in {path}:")).format(path=self.path))
         if not name:
             return
         target = os.path.join(self.path, name)
         try:
             self._fs("mkdir" if is_dir else "touch", path=target)
         except OSError as exc:
-            message(self.hub.window, f"Impossibile creare «{name}».", exc.strerror)
+            message(self.hub.window, _('Could not create “{name}”.').format(name=name), exc.strerror)
         self.refresh()
 
 
@@ -1347,13 +1583,13 @@ class AppPanel(Gtk.Box):
         self.get_style_context().add_class("app-panel")
         bar = Gtk.Box(spacing=10)
         bar.get_style_context().add_class("panel-toolbar")
-        self.search = Gtk.SearchEntry(placeholder_text="Cerca un'app")
+        self.search = Gtk.SearchEntry(placeholder_text=_('Search apps'))
         self.search.set_width_chars(24)
         self.search.connect("search-changed", lambda _e: self.flow.invalidate_filter())
-        add_btn = Gtk.Button(label="Aggiungi app…")
+        add_btn = Gtk.Button(label=_('Add app…'))
         add_btn.get_style_context().add_class("flat-btn")
         add_btn.connect("clicked", lambda _b: hub.edit_app())
-        self.system_btn = Gtk.CheckButton(label="Mostra le app di sistema")
+        self.system_btn = Gtk.CheckButton(label=_('Show system apps'))
         self.system_btn.set_active(bool(hub.config["show_system_apps"]))
         self.system_btn.connect("toggled", self._on_system_toggled)
         bar.pack_start(self.search, False, False, 0)
@@ -1381,7 +1617,7 @@ class AppPanel(Gtk.Box):
         items = []
         for index, app in enumerate(cfg["apps"]):
             items.append({
-                "name": app.get("name") or "Senza nome",
+                "name": app.get("name") or _('Untitled'),
                 "icon": icon_from_spec(app.get("icon")),
                 "command": app.get("command", ""),
                 "cwd": app.get("cwd", ""),
@@ -1429,14 +1665,14 @@ class AppPanel(Gtk.Box):
         if item["profiles"]:
             n = len(item["profiles"])
             badge = Gtk.Label()
-            badge.set_markup(f"<small>{n} profil{'i' if n > 1 else 'o'}</small>")
+            badge.set_markup("<small>%s</small>" % ngettext("{n} profile", "{n} profiles", n).format(n=n))
             badge.get_style_context().add_class("tile-badge")
             box.pack_start(badge, False, False, 0)
         btn.add(box)
         tip = [item["name"], item["command"]]
         if item["profiles"]:
-            tip.append("Profili: " + ", ".join(item["profiles"]))
-        tip.append("Tasto destro per altre opzioni")
+            tip.append(_('Profiles: ') + ", ".join(item["profiles"]))
+        tip.append(_('Right-click for more options'))
         btn.set_tooltip_text("\n".join(t for t in tip if t))
         btn.connect("clicked", self._on_click, item)
         btn.connect("button-press-event", self._on_press, item)
@@ -1456,7 +1692,7 @@ class AppPanel(Gtk.Box):
             self.hub.launch(item, profiles[0])
         elif len(profiles) > 1:
             menu = Gtk.Menu()
-            add_menu_item(menu, f"Avvia {item['name']} con:")
+            add_menu_item(menu, _('Start {name} with:').format(name=item['name']))
             for name in profiles:
                 add_menu_item(menu, "    " + name, self.hub.launch, item, name)
             show_menu(menu, btn)
@@ -1468,22 +1704,22 @@ class AppPanel(Gtk.Box):
             return False
         hub = self.hub
         menu = Gtk.Menu()
-        add_menu_item(menu, "Avvia senza profilo", hub.launch, item, None)
+        add_menu_item(menu, _('Start without a profile'), hub.launch, item, None)
         profiles = hub.config["profiles"]
         if profiles:
             sub = Gtk.Menu()
             for name in profiles:
                 mark = "✓ " if name in item["profiles"] else "    "
                 add_menu_item(sub, mark + name, hub.launch, item, name)
-            parent = Gtk.MenuItem(label="Avvia con il profilo")
+            parent = Gtk.MenuItem(label=_('Start with profile'))
             parent.set_submenu(sub)
             menu.append(parent)
         menu.append(Gtk.SeparatorMenuItem())
         if item["custom_index"] is not None:
-            add_menu_item(menu, "Modifica…", hub.edit_app, item["custom_index"])
-            add_menu_item(menu, "Rimuovi", hub.remove_app, item["custom_index"])
+            add_menu_item(menu, _('Edit…'), hub.edit_app, item["custom_index"])
+            add_menu_item(menu, _('Remove'), hub.remove_app, item["custom_index"])
         else:
-            add_menu_item(menu, "Crea una copia personalizzata (per associare profili)…",
+            add_menu_item(menu, _('Create a custom copy (to attach profiles)…'),
                           hub.customize_system_app, item)
         show_menu(menu, btn, event)
         return True
@@ -1494,10 +1730,10 @@ class AppPanel(Gtk.Box):
 # --------------------------------------------------------------------------- #
 class ProfilesDialog(Gtk.Dialog):
     def __init__(self, hub):
-        super().__init__(title="Profili ambiente", transient_for=hub.window, modal=True)
+        super().__init__(title=_('Environment profiles'), transient_for=hub.window, modal=True)
         self.hub = hub
         self.set_default_size(900, 520)
-        self.add_buttons("Annulla", Gtk.ResponseType.CANCEL, "Salva", Gtk.ResponseType.OK)
+        self.add_buttons(_('Cancel'), Gtk.ResponseType.CANCEL, _('Save'), Gtk.ResponseType.OK)
         self.items = [{"orig": name,
                        "name": name,
                        "description": p.get("description", ""),
@@ -1516,8 +1752,8 @@ class ProfilesDialog(Gtk.Dialog):
         sw.add(self.listbox)
         left.pack_start(sw, True, True, 0)
         btns = Gtk.Box(spacing=4)
-        for label, cb in (("Nuovo", self._add), ("Duplica", self._duplicate),
-                          ("Elimina", self._delete)):
+        for label, cb in ((_('New'), self._add), (_('Duplicate'), self._duplicate),
+                          (_('Delete'), self._delete)):
             b = Gtk.Button(label=label)
             b.connect("clicked", lambda _b, f=cb: f())
             btns.pack_start(b, True, True, 0)
@@ -1528,21 +1764,20 @@ class ProfilesDialog(Gtk.Dialog):
         self.name_entry = Gtk.Entry()
         self.name_entry.connect("changed", self._on_name_changed)
         self.desc_entry = Gtk.Entry()
-        self.script_entry = Gtk.Entry(placeholder_text="Opzionale, es. /opt/sdk/environment-setup")
+        self.script_entry = Gtk.Entry(placeholder_text=_('Optional, e.g. /opt/sdk/environment-setup'))
         script_box = Gtk.Box(spacing=4)
         script_box.pack_start(self.script_entry, True, True, 0)
-        browse = Gtk.Button(label="Sfoglia…")
+        browse = Gtk.Button(label=_('Browse…'))
         browse.connect("clicked", self._browse_script)
         script_box.pack_start(browse, False, False, 0)
-        labeled(grid, 0, "Nome", self.name_entry)
-        labeled(grid, 1, "Descrizione", self.desc_entry)
+        labeled(grid, 0, _('Name'), self.name_entry)
+        labeled(grid, 1, _('Description'), self.desc_entry)
         labeled(grid, 2, "Script (source)", script_box,
-                "Script caricato con «source» prima dell'avvio, utile per gli SDK "
-                "che forniscono un file environment-setup.")
+                _('Script loaded with “source” before launch, useful for SDKs that ship an environment-setup file.'))
 
         self.vars_store = Gtk.ListStore(str, str)
         self.vars_view = Gtk.TreeView(model=self.vars_store)
-        for idx, title in ((0, "Variabile"), (1, "Valore")):
+        for idx, title in ((0, _('Variable')), (1, _('Value'))):
             renderer = Gtk.CellRendererText(editable=True)
             renderer.connect("edited", self._on_cell_edited, idx)
             renderer.connect("editing-started", self._on_editing_started, idx)
@@ -1555,18 +1790,15 @@ class ProfilesDialog(Gtk.Dialog):
         grid.attach(vsw, 0, 3, 2, 1)
 
         vbtns = Gtk.Box(spacing=4)
-        for label, cb in (("Aggiungi variabile", self._add_var),
-                          ("Rimuovi variabile", self._remove_var),
-                          ("Verifica valori", self._preview)):
+        for label, cb in ((_('Add variable'), self._add_var),
+                          (_('Remove variable'), self._remove_var),
+                          (_('Check values'), self._preview)):
             b = Gtk.Button(label=label)
             b.connect("clicked", lambda _b, f=cb: f())
             vbtns.pack_start(b, False, False, 0)
         grid.attach(vbtns, 0, 4, 2, 1)
         hint = Gtk.Label(xalign=0, wrap=True)
-        hint.set_markup("<small>Doppio clic su una cella per modificarla. Usa <tt>${NOME}</tt> "
-                        "per riutilizzare un valore esistente, es. "
-                        "<tt>PATH = ${QTDIR}/bin:${PATH}</tt>. Le variabili vengono applicate "
-                        "nell'ordine in cui compaiono.</small>")
+        hint.set_markup(_('<small>Double-click a cell to edit it. Use <tt>${NAME}</tt> to reuse an existing value, e.g. <tt>PATH = ${QTDIR}/bin:${PATH}</tt>. Variables are applied in the order they appear.</small>'))
         hint.get_style_context().add_class("dim-label")
         grid.attach(hint, 0, 5, 2, 1)
         self.editor = grid
@@ -1629,7 +1861,7 @@ class ProfilesDialog(Gtk.Dialog):
             return
         row = self.listbox.get_row_at_index(self.current)
         if row:
-            row.get_child().set_text(entry.get_text().strip() or "(senza nome)")
+            row.get_child().set_text(entry.get_text().strip() or _('(untitled)'))
 
     def _unique(self, base):
         names = {it["name"] for it in self.items}
@@ -1640,7 +1872,7 @@ class ProfilesDialog(Gtk.Dialog):
 
     def _add(self):
         self._commit()
-        self.items.append({"orig": None, "name": self._unique("Nuovo profilo"),
+        self.items.append({"orig": None, "name": self._unique(_('New profile')),
                            "description": "", "script": "", "vars": []})
         self.current = None
         self._fill_list()
@@ -1652,7 +1884,7 @@ class ProfilesDialog(Gtk.Dialog):
         self._commit()
         clone = copy.deepcopy(self.items[self.current])
         clone["orig"] = None
-        clone["name"] = self._unique(clone["name"] + " (copia)")
+        clone["name"] = self._unique(clone["name"] + _(' (copy)'))
         self.items.append(clone)
         self.current = None
         self._fill_list()
@@ -1662,8 +1894,8 @@ class ProfilesDialog(Gtk.Dialog):
         if self.current is None:
             return
         name = self.items[self.current]["name"]
-        if not confirm(self, f"Eliminare il profilo «{name}»?",
-                       "Le app che lo usano non lo proporranno più.", "Elimina"):
+        if not confirm(self, _('Delete the profile “{name}”?').format(name=name),
+                       _('Apps that use it will no longer offer it.'), _('Delete')):
             return
         index = self.current
         self.items.pop(index)
@@ -1679,7 +1911,7 @@ class ProfilesDialog(Gtk.Dialog):
         # In GTK3 cliccare fuori dalla cella annulla la modifica: copiamo il testo
         # nel modello a ogni tasto, così non si perde nulla.
         if isinstance(editable, Gtk.Entry):
-            if idx == 0 and editable.get_text() == "NOME_VARIABILE":
+            if idx == 0 and editable.get_text() == "NEW_VARIABLE":
                 editable.select_region(0, -1)
             row_ref = Gtk.TreeRowReference.new(self.vars_store, Gtk.TreePath.new_from_string(path))
 
@@ -1690,7 +1922,7 @@ class ProfilesDialog(Gtk.Dialog):
             editable.connect("changed", on_changed)
 
     def _add_var(self):
-        it = self.vars_store.append(["NOME_VARIABILE", ""])
+        it = self.vars_store.append(["NEW_VARIABLE", ""])
         path = self.vars_store.get_path(it)
         self.vars_view.set_cursor(path, self.vars_view.get_column(0), True)
 
@@ -1700,9 +1932,9 @@ class ProfilesDialog(Gtk.Dialog):
             model.remove(it)
 
     def _browse_script(self, _btn):
-        dlg = Gtk.FileChooserDialog(title="Scegli lo script d'ambiente", transient_for=self,
+        dlg = Gtk.FileChooserDialog(title=_('Choose the environment script'), transient_for=self,
                                     action=Gtk.FileChooserAction.OPEN)
-        dlg.add_buttons("Annulla", Gtk.ResponseType.CANCEL, "Scegli", Gtk.ResponseType.OK)
+        dlg.add_buttons(_('Cancel'), Gtk.ResponseType.CANCEL, _('Choose'), Gtk.ResponseType.OK)
         if dlg.run() == Gtk.ResponseType.OK:
             self.script_entry.set_text(dlg.get_filename() or "")
         dlg.destroy()
@@ -1715,42 +1947,40 @@ class ProfilesDialog(Gtk.Dialog):
         env = build_env({"vars": dict(item["vars"])})
         lines, warnings = [], []
         if item["script"] and not os.path.isfile(os.path.expanduser(item["script"])):
-            warnings.append(f"Script non trovato: {item['script']}")
+            warnings.append(_('Script not found: {script}').format(script=item['script']))
         for key, _raw in item["vars"]:
             value = env.get(key, "")
             lines.append(f"{key}={value}")
             for part in value.split(":"):
                 if part.startswith("/") and not os.path.exists(part):
-                    warnings.append(f"{key}: il percorso {part} non esiste")
-        text = "\n".join(lines) or "(nessuna variabile)"
+                    warnings.append(_('{key}: the path {path} does not exist').format(key=key, path=part))
+        text = "\n".join(lines) or _('(no variables)')
         if warnings:
-            text = "Attenzione:\n  " + "\n  ".join(dict.fromkeys(warnings)) + "\n\n" + text
+            text = _('Warning:\n  ') + "\n  ".join(dict.fromkeys(warnings)) + "\n\n" + text
         if item["script"]:
-            text += "\n\n(Le variabili impostate dallo script non sono incluse in questa anteprima.)"
-        show_text(self, f"Valori risultanti per «{item['name']}»", text)
+            text += _('\n\n(Variables set by the script are not included in this preview.)')
+        show_text(self, _('Resulting values for “{name}”').format(name=item['name']), text)
 
     # -- salvataggio
     def apply(self):
         self._commit()
         names = [it["name"] for it in self.items]
         if any(not n for n in names):
-            message(self, "Ogni profilo deve avere un nome.")
+            message(self, _('Every profile needs a name.'))
             return False
         dupes = {n for n in names if names.count(n) > 1}
         if dupes:
-            message(self, "Nomi di profilo duplicati: " + ", ".join(sorted(dupes)))
+            message(self, _('Duplicate profile names: ') + ", ".join(sorted(dupes)))
             return False
         for it in self.items:
             bad = [k for k, _v in it["vars"] if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", k)]
             if bad:
-                message(self, f"Nomi di variabile non validi nel profilo «{it['name']}»: "
+                message(self, _('Invalid variable names in profile “{name}”: ').format(name=it['name'])
                               + ", ".join(bad),
-                        "Usa solo lettere, cifre e _, senza spazi, e non iniziare con una "
-                        "cifra (es. QT_DIR, MY_SDK_ROOT).")
+                        _('Use only letters, digits and _, no spaces, and do not start with a digit (e.g. QT_DIR, MY_SDK_ROOT).'))
                 return False
-            if any(k == "NOME_VARIABILE" for k, _v in it["vars"]):
-                if not confirm(self, f"Il profilo «{it['name']}» contiene ancora il segnaposto "
-                                     "NOME_VARIABILE.", "Salvare comunque?", "Salva"):
+            if any(k == "NEW_VARIABLE" for k, _v in it["vars"]):
+                if not confirm(self, _('Profile “{name}” still contains the placeholder NEW_VARIABLE.').format(name=it['name']), _('Save anyway?'), _('Save')):
                     return False
         renames, profiles = {}, {}
         for it in self.items:
@@ -1769,31 +1999,30 @@ class ProfilesDialog(Gtk.Dialog):
 class AppDialog(Gtk.Dialog):
     def __init__(self, hub, app=None):
         editing = app is not None and app.get("_editing", False)
-        super().__init__(title="Modifica app" if editing else "Nuova app",
+        super().__init__(title=_('Edit app') if editing else _('New app'),
                          transient_for=hub.window, modal=True)
         self.hub = hub
         app = app or {}
         self.set_default_size(560, -1)
-        self.add_buttons("Annulla", Gtk.ResponseType.CANCEL, "Salva", Gtk.ResponseType.OK)
+        self.add_buttons(_('Cancel'), Gtk.ResponseType.CANCEL, _('Save'), Gtk.ResponseType.OK)
         self.set_default_response(Gtk.ResponseType.OK)
 
         grid = Gtk.Grid(row_spacing=6, column_spacing=8, margin=12)
         self.name = Gtk.Entry(text=app.get("name", ""), activates_default=True)
         self.command = Gtk.Entry(text=app.get("command", ""), activates_default=True,
-                                 placeholder_text="es. qtcreator oppure /opt/app/bin/app --opzione")
+                                 placeholder_text=_('e.g. qtcreator or /opt/app/bin/app --option'))
         self.icon = Gtk.Entry(text=app.get("icon", ""),
-                              placeholder_text="Nome di icona del tema o percorso di un'immagine")
-        self.cwd = Gtk.Entry(text=app.get("cwd", ""), placeholder_text="Vuoto = home")
-        self.terminal = Gtk.CheckButton(label="Esegui in una scheda del terminale "
-                                              "(per programmi testuali)")
+                              placeholder_text=_('Theme icon name or image path'))
+        self.cwd = Gtk.Entry(text=app.get("cwd", ""), placeholder_text=_('Empty = home'))
+        self.terminal = Gtk.CheckButton(label=_('Run in a terminal tab (for text-mode programs)'))
         self.terminal.set_active(bool(app.get("terminal")))
-        labeled(grid, 0, "Nome", self.name)
-        labeled(grid, 1, "Comando", self.command)
-        labeled(grid, 2, "Icona", self.icon)
-        labeled(grid, 3, "Cartella di lavoro", self.cwd)
+        labeled(grid, 0, _('Name'), self.name)
+        labeled(grid, 1, _('Command'), self.command)
+        labeled(grid, 2, _('Icon'), self.icon)
+        labeled(grid, 3, _('Working folder'), self.cwd)
         grid.attach(self.terminal, 1, 4, 1, 1)
 
-        frame = Gtk.Frame(label="Profili ambiente da proporre all'avvio")
+        frame = Gtk.Frame(label=_('Environment profiles to offer at launch'))
         pbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, margin=8)
         self.checks = {}
         selected = set(app.get("profiles", []))
@@ -1805,11 +2034,10 @@ class AppDialog(Gtk.Dialog):
             self.checks[name] = check
             pbox.pack_start(check, False, False, 0)
         if not self.checks:
-            pbox.pack_start(Gtk.Label(label="Nessun profilo: creane uno da «Profili ambiente».",
+            pbox.pack_start(Gtk.Label(label=_('No profiles: create one from “Environment profiles”.'),
                                       xalign=0), False, False, 0)
         hint = Gtk.Label(xalign=0, wrap=True)
-        hint.set_markup("<small>Con più profili selezionati, al clic sull'icona scegli "
-                        "l'ambiente. Con uno solo, viene usato direttamente.</small>")
+        hint.set_markup(_('<small>With several profiles selected, you choose the environment when you click the icon. With just one, it is used directly.</small>'))
         hint.get_style_context().add_class("dim-label")
         pbox.pack_start(hint, False, False, 4)
         frame.add(pbox)
@@ -1822,18 +2050,61 @@ class AppDialog(Gtk.Dialog):
         name = self.name.get_text().strip()
         command = self.command.get_text().strip()
         if not name or not command:
-            message(self, "Nome e comando sono obbligatori.")
+            message(self, _('Name and command are required.'))
             return None
         try:
             shlex.split(command)
         except ValueError as exc:
-            message(self, "Il comando non è valido.", str(exc))
+            message(self, _('The command is not valid.'), str(exc))
             return None
         return {"name": name, "command": command,
                 "icon": self.icon.get_text().strip(),
                 "cwd": self.cwd.get_text().strip(),
                 "terminal": self.terminal.get_active(),
                 "profiles": [n for n, c in self.checks.items() if c.get_active()]}
+
+
+class SettingsDialog(Gtk.Dialog):
+    def __init__(self, hub):
+        super().__init__(title=_("Settings"), transient_for=hub.window, modal=True)
+        self.hub = hub
+        cfg = hub.config
+        self.set_default_size(520, -1)
+        self.add_buttons(_("Cancel"), Gtk.ResponseType.CANCEL, _("Save"), Gtk.ResponseType.OK)
+        self.set_default_response(Gtk.ResponseType.OK)
+        grid = Gtk.Grid(row_spacing=10, column_spacing=12, margin=16)
+
+        self.language = Gtk.ComboBoxText()
+        self.language.append("auto", _("Automatic (system language)"))
+        for code, name in LANGUAGES.items():
+            self.language.append(code, name)
+        self.language.set_active_id(cfg["language"] if cfg["language"] in LANGUAGES else "auto")
+        labeled(grid, 0, _("Language"), self.language)
+
+        self.font = Gtk.FontButton()
+        self.font.set_font(cfg["terminal_font"])
+        self.font.set_filter_func(lambda family, _face, *_args: family.is_monospace())
+        labeled(grid, 1, _("Terminal font"), self.font)
+
+        self.root_method = Gtk.ComboBoxText()
+        self.root_method.append("auto", _("Automatic: wsl.exe, no password"))
+        self.root_method.append("sudo", _("sudo: asks for your password"))
+        self.root_method.set_active_id("sudo" if cfg["root_method"] == "sudo" else "auto")
+        labeled(grid, 2, _("Root access"), self.root_method)
+
+        hint = Gtk.Label(xalign=0, wrap=True)
+        hint.set_markup("<small>%s</small>" % GLib.markup_escape_text(
+            _("A language change takes effect after restarting WSL Hub.")))
+        hint.get_style_context().add_class("dim-label")
+        grid.attach(hint, 0, 3, 2, 1)
+
+        self.get_content_area().pack_start(grid, True, True, 0)
+        self.show_all()
+
+    def values(self):
+        return {"language": self.language.get_active_id() or "auto",
+                "terminal_font": self.font.get_font() or self.hub.config["terminal_font"],
+                "root_method": self.root_method.get_active_id() or "auto"}
 
 
 # --------------------------------------------------------------------------- #
@@ -1844,6 +2115,7 @@ class Hub:
         self.config = Config()
         self._status_id = 0
         self._procs = set()
+        self.server = None  # socket for single-instance activation (set by main)
 
         settings = Gtk.Settings.get_default()
         if settings is not None:
@@ -1861,7 +2133,7 @@ class Hub:
         self.window.set_icon_name("utilities-terminal")
 
         header = Gtk.HeaderBar(show_close_button=True, title=APP_TITLE, subtitle=DISTRO)
-        profiles_btn = Gtk.Button(label="Profili ambiente")
+        profiles_btn = Gtk.Button(label=_('Environment profiles'))
         profiles_btn.get_style_context().add_class("flat-btn")
         profiles_btn.connect("clicked", lambda _b: self.open_profiles())
         header.pack_start(profiles_btn)
@@ -1869,15 +2141,27 @@ class Hub:
         menu_btn.get_style_context().add_class("icon-btn")
         menu_btn.set_image(Gtk.Image.new_from_icon_name("open-menu-symbolic", Gtk.IconSize.BUTTON))
         menu = Gtk.Menu()
-        add_menu_item(menu, "Modifica config.json nel terminale", self.edit_config_file)
-        add_menu_item(menu, "Ricarica la configurazione", self.reload_config)
-        add_menu_item(menu, "Apri la cartella dei log", self.show_logs)
+        add_menu_item(menu, _('Edit config.json in the terminal'), self.edit_config_file)
+        add_menu_item(menu, _('Reload configuration'), self.reload_config)
+        add_menu_item(menu, _('Open the log folder'), self.show_logs)
         menu.show_all()
         menu_btn.set_popup(menu)
         header.pack_end(menu_btn)
-        self.apps_toggle = Gtk.ToggleButton(label="App", active=True)
+        settings_btn = Gtk.Button()
+        settings_btn.get_style_context().add_class("icon-btn")
+        theme = Gtk.IconTheme.get_default()
+        gear = next((n for n in ("preferences-system-symbolic", "emblem-system-symbolic",
+                                 "applications-system-symbolic") if theme.has_icon(n)), None)
+        if gear:
+            settings_btn.set_image(Gtk.Image.new_from_icon_name(gear, Gtk.IconSize.BUTTON))
+        else:
+            settings_btn.set_label("⚙")
+        settings_btn.set_tooltip_text(_("Settings"))
+        settings_btn.connect("clicked", lambda _b: self.open_settings())
+        header.pack_end(settings_btn)
+        self.apps_toggle = Gtk.ToggleButton(label=_('Apps'), active=True)
         self.apps_toggle.get_style_context().add_class("accent-btn")
-        self.apps_toggle.set_tooltip_text("Mostra o nascondi il pannello delle app (Ctrl+Shift+A)")
+        self.apps_toggle.set_tooltip_text(_('Show or hide the app panel (Ctrl+Shift+A)'))
         header.pack_end(self.apps_toggle)
         self.window.set_titlebar(header)
 
@@ -1885,8 +2169,7 @@ class Hub:
         self.status_dot.get_style_context().add_class("status-dot")
         self.status_label = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END)
         self.status_hints = Gtk.Label(xalign=1)
-        self.status_hints.set_markup("<small>Ctrl+Shift+T  nuova scheda     "
-                                     "Ctrl+Shift+F  cerca app</small>")
+        self.status_hints.set_markup(_('<small>Ctrl+Shift+T  new tab     Ctrl+Shift+F  search apps</small>'))
         self.status_hints.get_style_context().add_class("status-hints")
         self.status_bar = Gtk.Box(spacing=8)
         self.status_bar.get_style_context().add_class("status-bar")
@@ -1923,11 +2206,11 @@ class Hub:
         if self.config.error:
             self.status(self.config.error, error=True)
         else:
-            self.status(f"Pronto. Configurazione: {CONFIG_FILE}")
+            self.status(_('Ready. Configuration: {path}').format(path=CONFIG_FILE))
 
     # -- utilità
     def status(self, text, error=False):
-        prefix = f"<span foreground='{UI_ROOT}'><b>Errore:</b></span> " if error else ""
+        prefix = "<span foreground='%s'><b>%s</b></span> " % (UI_ROOT, _("Error:")) if error else ""
         self.status_label.set_markup(prefix + GLib.markup_escape_text(text))
         dot = self.status_dot.get_style_context()
         if error:
@@ -1946,12 +2229,12 @@ class Hub:
 
     def copy_text(self, text):
         Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD).set_text(text, -1)
-        self.status(f"Copiato: {text}")
+        self.status(_('Copied: {text}').format(text=text))
 
     def open_in_windows(self, path):
         exe, win = windows_explorer(), to_windows_path(path)
         if not exe or not win:
-            self.status("L'interoperabilità con Windows non è disponibile in questa distro",
+            self.status(_('Windows interoperability is not available in this distribution'),
                         error=True)
             return
         subprocess.Popen([exe, win], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -1968,7 +2251,7 @@ class Hub:
         if tab is not None and tab.send_cd(folder):
             tab.term.grab_focus()
         else:
-            self.status("Il terminale attivo sta eseguendo un programma: apro una nuova scheda")
+            self.status(_('The active terminal is running a program: opening a new tab'))
             self.terminals.new_tab(cwd=folder)
 
     def paste_in_terminal(self, path):
@@ -1983,7 +2266,7 @@ class Hub:
         if profile_name:
             profile = self.config["profiles"].get(profile_name)
             if profile is None:
-                self.status(f"Il profilo «{profile_name}» non esiste più", error=True)
+                self.status(_('The profile “{name}” no longer exists').format(name=profile_name), error=True)
                 return
         if item.get("desktop") is not None:
             argv = desktop_argv(item["desktop"])
@@ -1991,12 +2274,12 @@ class Hub:
             try:
                 argv = shlex.split(item.get("command", ""))
             except ValueError as exc:
-                self.status(f"Comando non valido per {item['name']}: {exc}", error=True)
+                self.status(_('Invalid command for {app}: {error}').format(app=item['name'], error=exc), error=True)
                 return
             if argv:
                 argv[0] = os.path.expanduser(argv[0])
         if not argv:
-            self.status(f"Nessun comando configurato per {item['name']}", error=True)
+            self.status(_('No command configured for {app}').format(app=item['name']), error=True)
             return
 
         cwd = os.path.expanduser(item.get("cwd") or "") or HOME
@@ -2014,8 +2297,8 @@ class Hub:
         env = build_env(profile, extra)
         has_script = bool((profile or {}).get("script", "").strip())
         if not has_script and shutil.which(argv[0], path=env.get("PATH")) is None:
-            where = f" con il PATH del profilo «{profile_name}»" if profile_name else ""
-            self.status(f"Comando non trovato{where}: {argv[0]}", error=True)
+            where = _(' with the PATH of profile “{name}”').format(name=profile_name) if profile_name else ""
+            self.status(_('Command not found{where}: {command}').format(where=where, command=argv[0]), error=True)
             return
 
         LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -2029,9 +2312,9 @@ class Hub:
                                         stdin=subprocess.DEVNULL, stdout=log,
                                         stderr=subprocess.STDOUT, start_new_session=True)
             except OSError as exc:
-                self.status(f"Impossibile avviare {label}: {exc.strerror}", error=True)
+                self.status(_('Could not start {app}: {error}').format(app=label, error=exc.strerror), error=True)
                 return
-        self.status(f"Avviato {label}")
+        self.status(_('Started {app}').format(app=label))
         started = time.monotonic()
         # Il processo viene controllato ogni secondo (poll() lo raccoglie, niente zombie)
         # finché non termina; il riferimento resta in self._procs.
@@ -2048,9 +2331,9 @@ class Hub:
                 tail = log_path.read_text(errors="replace").splitlines()[-25:]
             except OSError:
                 tail = []
-            self.status(f"{label} si è chiuso con codice {code}", error=True)
-            show_text(self.window, f"{label} si è chiuso subito (codice {code})",
-                      f"Log completo: {log_path}\n\n" + "\n".join(tail))
+            self.status(_('{app} exited with code {code}').format(app=label, code=code), error=True)
+            show_text(self.window, _('{app} exited right away (code {code})').format(app=label, code=code),
+                      _('Full log: {path}\n\n').format(path=log_path) + "\n".join(tail))
         return False
 
     # -- gestione app personalizzate
@@ -2084,13 +2367,58 @@ class Hub:
 
     def remove_app(self, index):
         name = self.config["apps"][index].get("name", "")
-        if confirm(self.window, f"Rimuovere «{name}» dal pannello?",
-                   "Il programma resta installato: viene tolta solo l'icona.", "Rimuovi"):
+        if confirm(self.window, _('Remove “{name}” from the panel?').format(name=name),
+                   _('The program stays installed: only the icon is removed.'), _('Remove')):
             self.config["apps"].pop(index)
             self.config.save()
             self.apps.rebuild()
 
     # -- configurazione
+    def open_settings(self):
+        dlg = SettingsDialog(self)
+        response = dlg.run()
+        values = dlg.values()
+        dlg.destroy()
+        if response != Gtk.ResponseType.OK:
+            return
+        cfg = self.config
+        old_language = current_language()
+        cfg["language"] = values["language"]
+        if values["terminal_font"] != cfg["terminal_font"]:
+            cfg["terminal_font"] = values["terminal_font"]
+            font = Pango.FontDescription.from_string(values["terminal_font"])
+            for i in range(self.terminals.notebook.get_n_pages()):
+                self.terminals.notebook.get_nth_page(i).term.set_font(font)
+        if values["root_method"] != cfg["root_method"]:
+            cfg["root_method"] = values["root_method"]
+            self.files.root_btn.set_active(False)  # the next activation uses the new method
+            self.root.stop()
+        cfg.save()
+        new_language = values["language"] if values["language"] in LANGUAGES else detect_language()
+        if new_language == old_language:
+            self.status(_("Settings saved"))
+        elif confirm(self.window, _("Restart WSL Hub now to apply the language?"),
+                     _("Open terminal tabs will be closed. Apps you started keep running."),
+                     _("Restart now")):
+            self.restart()
+        else:
+            self.status(_("The new language will be used the next time WSL Hub starts"))
+
+    def restart(self):
+        """Restart WSL Hub in the same process (used to apply a language change)."""
+        self.terminals.closing = True
+        for i in reversed(range(self.terminals.notebook.get_n_pages())):
+            self.terminals.close_tab(self.terminals.notebook.get_nth_page(i))
+        self.root.stop()
+        if self.server is not None:
+            self.server.close()
+        try:
+            SOCKET_PATH.unlink()
+        except OSError:
+            pass
+        script = os.path.abspath(sys.argv[0])
+        os.execv(sys.executable, [sys.executable, script, *sys.argv[1:]])
+
     def open_profiles(self):
         dlg = ProfilesDialog(self)
         saved = False
@@ -2101,7 +2429,7 @@ class Hub:
         dlg.destroy()
         if saved:
             self.on_config_changed()
-            self.status("Profili salvati")
+            self.status(_('Profiles saved'))
 
     def on_config_changed(self):
         self.apps.system_btn.set_active(bool(self.config["show_system_apps"]))
@@ -2115,12 +2443,12 @@ class Hub:
         if self.config.error:
             self.status(self.config.error, error=True)
         else:
-            self.status("Configurazione ricaricata")
+            self.status(_('Configuration reloaded'))
 
     def edit_config_file(self):
         editor = os.environ.get("EDITOR") or "nano"
         self.terminals.new_tab(argv=[editor, str(CONFIG_FILE)], title="config.json")
-        self.status("Dopo aver salvato, usa «Ricarica la configurazione» dal menu")
+        self.status(_('After saving, use “Reload configuration” from the menu'))
 
     def show_logs(self):
         LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -2170,6 +2498,7 @@ def activate_existing_instance():
 
 
 def listen_for_activation(callback):
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
     try:
         SOCKET_PATH.unlink()
     except FileNotFoundError:
@@ -2181,7 +2510,7 @@ def listen_for_activation(callback):
 
     def on_ready(_fd, _cond):
         try:
-            conn, _ = server.accept()
+            conn, _addr = server.accept()
             conn.close()
             callback()
         except OSError:
@@ -2202,6 +2531,7 @@ def main():
         return 0
     hub = Hub()
     server = listen_for_activation(hub.window.present)
+    hub.server = server
     GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, lambda: Gtk.main_quit() or False)
     try:
         Gtk.main()

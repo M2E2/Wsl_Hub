@@ -8,8 +8,6 @@ The typical use case is embedded development: profiles let you switch in one cli
 
 It runs inside WSL and is displayed on Windows through [WSLg](https://github.com/microsoft/wslg), like a regular application with its own icon in the Start menu.
 
-> **Note:** the user interface is currently in Italian. Button names in this README are quoted as they appear on screen, followed by an English translation.
-
 ![WSL Hub screenshot](docs/screenshot.png)
 
 ## Features
@@ -21,6 +19,7 @@ It runs inside WSL and is displayed on Windows through [WSLg](https://github.com
 - **Environment profiles**: sets of variables (with references such as `${PATH}`) and, optionally, a script loaded with `source`. They apply only to the apps and terminals you start, without touching the rest of the system. If an app has several profiles, you pick one when you click it.
 - **Root access**: a root terminal, a root mode for the file manager (read and edit `/root`, `/etc`, …) and "Edit as root" for single files. The interface keeps running as your user: only the operations you request run as root.
 - **App logs**: the output of every app you start goes to a log. If an app exits right away with an error, the hub shows its last lines.
+- **English and Italian interface**, selectable from Settings.
 - **Optional autostart** when WSL opens, and a single instance: launching it again brings the existing window to the front.
 
 ## Requirements
@@ -56,7 +55,7 @@ The script adds a delimited block to `~/.bashrc` and backs up the file first. Th
 
 ## Environment profiles
 
-A profile is a set of variables applied **only** to the process you start. Profiles are managed from the **Profili ambiente** (Environment profiles) button.
+A profile is a set of variables applied **only** to the process you start. Profiles are managed from the **Environment profiles** button.
 
 - Variables are applied in order, and `${NAME}` refers to the existing value, including variables defined in earlier rows:
   ```
@@ -65,8 +64,8 @@ A profile is a set of variables applied **only** to the process you start. Profi
   CMAKE_PREFIX_PATH = ${QTDIR}
   ```
 - The **Script (source)** field loads a script before launch. This is useful with SDKs that ship an `environment-setup-*` file, such as Yocto SDKs.
-- **Verifica valori** (Check values) shows the resulting values and flags paths that do not exist.
-- The **Terminale con profilo** (Terminal with profile) button opens a shell with those variables. The `WSL_HUB_PROFILE` variable holds the name of the active profile, so you can show it in your prompt:
+- **Check values** shows the resulting values and flags paths that do not exist.
+- The **Terminal with profile** button opens a shell with those variables. The `WSL_HUB_PROFILE` variable holds the name of the active profile, so you can show it in your prompt:
   ```bash
   [ -n "$WSL_HUB_PROFILE" ] && PS1="[$WSL_HUB_PROFILE] $PS1"
   ```
@@ -77,7 +76,7 @@ WSL Hub does not include or distribute Qt or any other SDK: profiles only point 
 
 ## Root access
 
-The behavior is set with `root_method` in `config.json`:
+The behavior is set in **Settings** (gear icon), or with `root_method` in `config.json`:
 
 | Value | How root is obtained |
 |---|---|
@@ -86,12 +85,21 @@ The behavior is set with `root_method` in `config.json`:
 
 `"auto"` adds no risk compared to a standard WSL installation, where the Windows account can already become root with `wsl -u root`. If you prefer to be asked for a password every time, use `"sudo"`.
 
+## Settings and language
+
+The gear icon in the title bar opens **Settings**, where you can choose:
+
+- **Language**: English, Italian, or *Automatic*, which follows the language of your WSL system (`LANG`) and falls back to English. A language change needs a restart of WSL Hub: the dialog offers to do it right away. Open terminal tabs are closed, while apps you started keep running.
+- **Terminal font**: applied immediately to all open tabs. Only monospace fonts are listed.
+- **Root access**: see [Root access](#root-access).
+
 ## Configuration
 
-The file is `~/.config/wsl-hub/config.json` and is created on first launch. You can edit it from the menu **☰ → Modifica config.json nel terminale** (Edit config.json in the terminal) and then apply it with **Ricarica la configurazione** (Reload configuration).
+The file is `~/.config/wsl-hub/config.json` and is created on first launch. You can edit it from the menu **☰ → Edit config.json in the terminal** and then apply it with **Reload configuration**.
 
 | Key | Description |
 |---|---|
+| `language` | `"auto"`, `"en"` or `"it"`. |
 | `profiles` | Environment profiles: `description`, `script`, `vars`. |
 | `apps` | Custom apps: `name`, `command`, `icon` (icon name or path), `cwd`, `terminal` (for text-mode programs), `profiles`. |
 | `bookmarks` | File manager bookmarks (`name`, `path`). |
@@ -129,9 +137,20 @@ App logs are in `~/.cache/wsl-hub/logs/`.
 
 ## Known limitations
 
-- The user interface is in Italian.
+- Available languages: English and Italian (see [Adding a language](#adding-a-language)).
+- The install scripts (`install.sh`, `autostart.sh`, `uninstall.sh`) print their messages in Italian.
 - Designed for Debian/Ubuntu distributions: on other distributions, install the equivalent dependencies by hand.
 - The file manager's root mode does not use the trash: deletion is permanent, after confirmation.
+
+## Adding a language
+
+All interface text is written in English in `wsl_hub.py` and goes through the `_()` function. To add a language:
+
+1. Add its code and name to `LANGUAGES`, e.g. `"de": "Deutsch"`.
+2. Add a dictionary to `TRANSLATIONS` that maps each English string to its translation. The Italian dictionary is a complete list of the strings to translate. Keep placeholders such as `{name}` unchanged.
+3. If the language has plural rules other than English ("1 item" / "2 items"), extend `ngettext()`.
+
+Missing strings fall back to English, so a partial translation still works.
 
 ## License
 
