@@ -50,7 +50,7 @@ Name=WSL Hub
 Comment=Terminal, files and apps for WSL in one window
 Comment[it]=Terminale, file e app di WSL in un'unica finestra
 Exec=$LAUNCHER
-Icon=wsl-hub
+Icon=/usr/share/pixmaps/wsl-hub.png
 Terminal=false
 Categories=System;Utility;
 StartupWMClass=wsl-hub
@@ -68,6 +68,9 @@ sudo install -D -m 644 "$SRC_DIR/icons/wsl-hub.svg" /usr/share/icons/hicolor/sca
 
 # Aggiorna la cache delle icone se possibile
 sudo gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
+
+echo "==> Copio icona principale in /usr/share/pixmaps"
+sudo install -D -m 644 "$SRC_DIR/icons/wsl-hub-256.png" /usr/share/pixmaps/wsl-hub.png || true
 
 cat <<EOF
 

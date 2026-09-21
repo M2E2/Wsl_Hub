@@ -31,12 +31,31 @@ import sys
 import time
 from pathlib import Path
 
+# WSLg passa a Windows l'icona della finestra solo per le finestre X11
+# (_NET_WM_ICON): una superficie Wayland non ha un protocollo per l'icona, e
+# nella barra delle applicazioni compare il pinguino generico. Sotto WSL
+# preferiamo quindi XWayland, a meno che l'utente non imponga un backend.
+if (os.environ.get("WSL_DISTRO_NAME") and not os.environ.get("GDK_BACKEND")
+        and os.environ.get("DISPLAY")):
+    os.environ["GDK_BACKEND"] = "x11"
+
 import gi
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 gi.require_version("Vte", "2.91")
-from gi.repository import Gdk, Gio, GLib, Gtk, Pango, Vte  # noqa: E402
+from gi.repository import Gdk, GLib  # noqa: E402
+
+# WM_CLASS lega la finestra alla voce del menu Start (StartupWMClass nel
+# .desktop). Le due metà vanno impostate in momenti diversi: il nome prima di
+# importare Gtk, perché PyGObject chiama Gtk.init_check() all'import e dopo
+# resterebbe il nome del file ("wsl_hub.py"); la classe invece solo a GDK
+# inizializzato, cioè dopo l'import, altrimenti non viene applicata.
+GLib.set_prgname("wsl-hub")
+
+from gi.repository import GdkPixbuf, Gio, Gtk, Pango, Vte  # noqa: E402
+
+Gdk.set_program_class("wsl-hub")
 
 __version__ = "0.1.0"
 
@@ -341,25 +360,39 @@ UI_ACCENT = "#56c2cf"
 UI_ROOT = "#e06c75"
 UI_LINE = "rgba(255, 255, 255, 0.07)"
 
-CSS = ("""
-window, .hub-root { background-color: %(bg)s; }
+# I segnaposto {nome} nel CSS vengono sostituiti a mano: né str.format() né %
+# si possono usare, perché il CSS contiene già graffe (i blocchi di regole) e
+# percentuali (es. "border-radius: 50%").
+UI_COLORS = {"bg": UI_BG, "panel": UI_PANEL, "header": UI_HEADER, "field": UI_FIELD,
+             "text": UI_TEXT, "dim": UI_DIM, "accent": UI_ACCENT, "root": UI_ROOT,
+             "line": UI_LINE}
+
+
+def _style(css):
+    for name, color in UI_COLORS.items():
+        css = css.replace("{" + name + "}", color)
+    return css.encode()
+
+
+CSS = _style("""
+window, .hub-root { background-color: {bg}; }
 window { font-family: "IBM Plex Sans", "Cantarell", sans-serif; font-size: 12px; }
 
 headerbar {
     background-image: none;
-    background-color: %(header)s;
-    border-bottom: 1px solid %(line)s;
+    background-color: {header};
+    border-bottom: 1px solid {line};
     box-shadow: none;
     min-height: 44px;
     padding: 0 8px;
 }
-headerbar .title { font-size: 13px; font-weight: 600; color: %(text)s; }
-headerbar .subtitle { font-size: 10px; font-weight: 500; color: %(accent)s; }
+headerbar .title { font-size: 13px; font-weight: 600; color: {text}; margin-left: 8px; }
+headerbar .subtitle { font-size: 10px; font-weight: 500; color: {accent}; }
 
 button.flat-btn, button.icon-btn {
     background-image: none;
     background-color: rgba(255, 255, 255, 0.055);
-    border: 1px solid %(line)s;
+    border: 1px solid {line};
     border-radius: 6px;
     color: #c8cdd6;
     padding: 4px 10px;
@@ -372,15 +405,15 @@ button.icon-btn { padding: 4px 6px; }
 button.accent-btn {
     background-image: none;
     background-color: rgba(255, 255, 255, 0.055);
-    border: 1px solid %(line)s;
+    border: 1px solid {line};
     border-radius: 6px;
     color: #c8cdd6;
     padding: 4px 11px;
     box-shadow: none;
 }
 button.accent-btn:checked {
-    background-color: %(accent)s;
-    border-color: %(accent)s;
+    background-color: {accent};
+    border-color: {accent};
     color: #0f1114;
     font-weight: 600;
 }
@@ -390,7 +423,7 @@ button.root-btn {
     background-color: rgba(224, 108, 117, 0.14);
     border: 1px solid rgba(224, 108, 117, 0.3);
     border-radius: 6px;
-    color: %(root)s;
+    color: {root};
     font-weight: 600;
     box-shadow: none;
     text-shadow: none;
@@ -403,31 +436,31 @@ button.root-btn {
     background-color: transparent;
     border: none;
     border-radius: 5px;
-    color: %(dim)s;
+    color: {dim};
     font-size: 11px;
     padding: 3px 9px;
     box-shadow: none;
 }
-.segmented button:checked { background-color: rgba(255, 255, 255, 0.12); color: %(text)s; }
+.segmented button:checked { background-color: rgba(255, 255, 255, 0.12); color: {text}; }
 .segmented button.root-toggle:checked {
     background-color: rgba(224, 108, 117, 0.16);
     box-shadow: inset 0 0 0 1px rgba(224, 108, 117, 0.35);
-    color: %(root)s;
+    color: {root};
     font-weight: 600;
 }
 
 entry {
     background-image: none;
-    background-color: %(field)s;
+    background-color: {field};
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 7px;
     color: #d7dae0;
     padding: 6px 9px;
 }
-entry:focus { border-color: %(accent)s; }
+entry:focus { border-color: {accent}; }
 combobox button {
     background-image: none;
-    background-color: %(field)s;
+    background-color: {field};
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 7px;
     color: #d7dae0;
@@ -435,23 +468,23 @@ combobox button {
     text-shadow: none;
 }
 entry.path-entry { font-family: "JetBrains Mono", monospace; font-size: 12px; }
-entry.root-mode { border-color: %(root)s; box-shadow: inset 0 0 0 1px rgba(224, 108, 117, 0.35); }
+entry.root-mode { border-color: {root}; box-shadow: inset 0 0 0 1px rgba(224, 108, 117, 0.35); }
 
-.file-panel { background-color: %(panel)s; }
+.file-panel { background-color: {panel}; }
 treeview.view { background-color: transparent; color: #d7dae0; }
 treeview.view:selected { background-color: rgba(255, 255, 255, 0.09); color: #ffffff; }
 treeview header button {
     background-image: none;
     background-color: transparent;
     border: none;
-    border-bottom: 1px solid %(line)s;
-    color: %(dim)s;
+    border-bottom: 1px solid {line};
+    color: {dim};
     font-size: 10px;
     font-weight: 500;
     padding: 4px 6px;
 }
 
-.app-panel { background-color: %(bg)s; }
+.app-panel { background-color: {bg}; }
 .app-tile {
     padding: 10px 6px;
     border: 1px solid rgba(255, 255, 255, 0.06);
@@ -461,43 +494,42 @@ treeview header button {
     box-shadow: none;
 }
 .app-tile:hover { background-color: rgba(255, 255, 255, 0.08); }
-.app-tile label { font-size: 11px; font-weight: 500; color: %(text)s; }
+.app-tile label { font-size: 11px; font-weight: 500; color: {text}; }
 .tile-badge { color: #e0b483; font-family: "JetBrains Mono", monospace; }
 
-notebook > header { background-color: %(header)s; border-bottom: 1px solid %(line)s; }
+notebook > header { background-color: {header}; border-bottom: 1px solid {line}; }
 notebook > header > tabs > tab {
     background-image: none;
     background-color: transparent;
     border: none;
     border-top: 2px solid transparent;
-    color: %(dim)s;
+    color: {dim};
     font-size: 12px;
     padding: 7px 12px;
     box-shadow: none;
 }
 notebook > header > tabs > tab:checked {
     background-color: #1f2329;
-    border-top: 2px solid %(accent)s;
-    color: %(text)s;
+    border-top: 2px solid {accent};
+    color: {text};
     box-shadow: none;
 }
-.root-label { color: %(root)s; font-weight: bold; }
+.root-label { color: {root}; font-weight: bold; }
 
 .status-bar {
-    background-color: %(header)s;
-    border-top: 1px solid %(line)s;
+    background-color: {header};
+    border-top: 1px solid {line};
     padding: 5px 12px;
     font-size: 11px;
-    color: %(dim)s;
+    color: {dim};
 }
-.status-dot { color: %(accent)s; font-size: 9px; }
-.status-dot.error { color: %(root)s; }
+.status-dot { color: {accent}; font-size: 9px; }
+.status-dot.error { color: {root}; }
 .status-hints { color: #6d747f; font-family: "JetBrains Mono", monospace; }
 
 .panel-toolbar { padding: 6px; }
-""" % {"bg": UI_BG, "panel": UI_PANEL, "header": UI_HEADER, "field": UI_FIELD,
-       "text": UI_TEXT, "dim": UI_DIM, "accent": UI_ACCENT, "root": UI_ROOT,
-       "line": UI_LINE}).encode()
+
+""")
 
 
 # --------------------------------------------------------------------------- #
@@ -2128,11 +2160,32 @@ class Hub:
         Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), provider,
                                                  Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
+        # L'icona va data in più dimensioni: Windows ne usa una piccola nella
+        # barra delle applicazioni e una grande in Alt+Tab. set_default_icon_list
+        # vale anche per i dialoghi, non solo per la finestra principale.
+        icons = []
+        for size in (16, 24, 32, 48, 64, 128, 256):
+            try:
+                icons.append(GdkPixbuf.Pixbuf.new_from_file(
+                    f"/usr/share/icons/hicolor/{size}x{size}/apps/wsl-hub.png"))
+            except GLib.Error:
+                pass
+        if icons:
+            Gtk.Window.set_default_icon_list(icons)
+        else:
+            Gtk.Window.set_default_icon_name("wsl-hub")
+
         self.window = Gtk.Window(title=f"{APP_TITLE} ({DISTRO})")
         self.window.set_default_size(1320, 820)
-        self.window.set_icon_name("utilities-terminal")
+
+        # Also set a role as a mild hint for some WMs
+        try:
+            self.window.set_role("wsl-hub")
+        except Exception:
+            pass
 
         header = Gtk.HeaderBar(show_close_button=True, title=APP_TITLE, subtitle=DISTRO)
+
         profiles_btn = Gtk.Button(label=_('Environment profiles'))
         profiles_btn.get_style_context().add_class("flat-btn")
         profiles_btn.connect("clicked", lambda _b: self.open_profiles())
@@ -2522,8 +2575,7 @@ def listen_for_activation(callback):
 
 
 def main():
-    GLib.set_prgname("wsl-hub")
-    GLib.set_application_name(APP_TITLE)
+    GLib.set_application_name(APP_TITLE)  # il prgname è già impostato all'import
     if "--version" in sys.argv:
         print(f"{APP_TITLE} {__version__}")
         return 0

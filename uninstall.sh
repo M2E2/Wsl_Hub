@@ -40,6 +40,9 @@ sudo rm -f /usr/share/icons/hicolor/scalable/apps/wsl-hub.svg || true
 # Aggiorna la cache delle icone se possibile
 sudo gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
 
+# Rimuovo icona in /usr/share/pixmaps
+sudo rm -f /usr/share/pixmaps/wsl-hub.png || true
+
 if [ "${1:-}" = "--purge" ]; then
     rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/wsl-hub" "${XDG_CACHE_HOME:-$HOME/.cache}/wsl-hub"
     echo "Configurazione e log rimossi."
